@@ -1,0 +1,8 @@
+
+.bsp/*
+build/*
+lib/*
+project/build.properties
+project/project/*
+project/target/*
+target/*
