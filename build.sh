@@ -1,9 +1,22 @@
 #! /bin/bash
 
+echo "Building dockers"
+cd spark/docker
+./build_docker.sh
+cd ../..
+echo "Building dockers complete"
+
+echo "Building benchmark"
 cd benchmark
-./build_spark_sql_perf.sh
-./build_perf_test.sh
+./build.sh
+cd ..
+echo "Building benchmark complete"
 
-cd tpch-dbgen/
-make
 
+echo "Building datasource"
+cd datasource
+./build.sh
+cd ..
+echo "Building datasource complete"
+
+echo "Build of ndp complete"

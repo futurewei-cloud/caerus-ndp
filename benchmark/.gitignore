@@ -1,0 +1,9 @@
+build/
+tpch-results-db/
+perf-test/build/
+perf-test/lib/
+perf-test/target/
+perf-test/project/build.properties
+perf-test/project/project/
+perf-test/project/target/
+perf-test/.bsp/
