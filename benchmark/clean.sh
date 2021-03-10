@@ -13,7 +13,6 @@ rm -rf perf-test/project/target
 rm -rf perf-test/project/project
 rm -rf perf-test/.bsp
 
-rm -rf spark-sql-perf/build
 rm -rf spark-sql-perf/lib
 rm -rf spark-sql-perf/target
 rm -rf spark-sql-perf/project/target

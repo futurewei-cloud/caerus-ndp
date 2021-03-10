@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package com.github.gendb
+package com.github.perf
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types._
@@ -32,8 +32,13 @@ class Database(testName: String, format: String = "csv") {
       .appName("gen-db")
       .getOrCreate();
   val sqlContext = new org.apache.spark.sql.SQLContext(spark.sparkContext)
-  val rootDir = s"hdfs://dikehdfs:9000/${testName}" // root directory for generation
-  //val rootDir = s"ndphdfs://dikehdfs/${testName}" // root directory for ndp.
+  val rootDir = {
+    if (format == "csv") {
+      s"hdfs://dikehdfs:9000/${testName}" // root directory for generation
+    } else {
+      s"ndphdfs://dikehdfs/${testName}" // root directory for ndp.
+    }
+  }
   //val rootDir = s"/build/tpch-data/${testName}"   // local filesystem directory.
   val databaseName = s"${testName}"  // name of database to create.
   val scaleFactor = "1" // scaleFactor defines the size of the dataset to generate (in GB).
@@ -91,12 +96,10 @@ class Database(testName: String, format: String = "csv") {
   }
   
   def runTest(args: Array[String]) : Unit = {
-    // Set:
     val resultLocation = s"/benchmark/${testName}-results-db" // place to write results
     val iterations = 1 // how many iterations of queries to run.
     val timeout = 24*60*60 // timeout, in seconds.
 
-    // Run:
     spark.sql(s"drop database if exists $databaseName cascade")
     spark.sql(s"create database $databaseName")
     spark.sql(s"use $databaseName")
@@ -104,6 +107,7 @@ class Database(testName: String, format: String = "csv") {
     spark.sql(s"DESCRIBE DATABASE EXTENDED $databaseName").show()
     //spark.sql(s"SHOW TABLES FROM $databaseName").show()
     //spark.sql(s"SHOW TABLE EXTENDED FROM $databaseName LIKE '*'").show(900, false)
+
     val experimentStatus: Benchmark.ExperimentStatus = {
       if (testName == "tpch") {
         val tpch = new TPCH (sqlContext = sqlContext)
@@ -132,16 +136,19 @@ class Database(testName: String, format: String = "csv") {
   } 
 }
 
-object GenDb {
+object PerfTest {
+
   def main(args: Array[String]) {
-    println("args: " + args.mkString(", "))
-    if (args.length < 3) {
-        println("gen-db: [gen | run][tpch | tpcds][csv | parquet]")
+    if (args.length < 1) {
+        println("gen-db: [gen | run][csv | pushdown]")
         return
     }
-    println(s"Test run ${args(0)} ${args(1)}")
-    val db = new Database(args(1), args(2))
-    if (args(0) == "gen") {
+    val action = args(0)
+    val test = "tpch"
+    val format = if (args.length > 1) args(1) else "csv"
+    println(s"action: ${action} test: ${test} format: ${format}")
+    val db = new Database(test, format)
+    if (action == "gen") {
       db.genDb(args)
     } else {
       println("***  Starting Test Run ***")
