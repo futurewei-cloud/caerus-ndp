@@ -10,7 +10,7 @@ docker run --rm -p 4040:4040 -p 6066:6066 -p 7077:7077 -p 8080:8080 -p 5005:5005
   -e "MASTER=spark://sparkmaster:7077" \
   -e "SPARK_CONF_DIR=/conf" \
   -e "SPARK_PUBLIC_DNS=localhost" \
-  --mount type=bind,source="$(pwd)"/../spark-sql-perf,target=/spark-sql-perf \
+  --mount type=bind,source="$(pwd)"/../benchmark,target=/benchmark \
   --mount type=bind,source="$(pwd)"/../datasource,target=/datasource \
   -v "$(pwd)"/conf/master:/conf  \
   -v "${ROOT_DIR}/build/.m2:${DOCKER_HOME_DIR}/.m2" \

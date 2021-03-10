@@ -12,7 +12,6 @@ docker run --rm -p 8081:8081 \
       -e "SPARK_WORKER_PORT=8881" \
       -e "SPARK_WORKER_WEBUI_PORT=8081" \
       -e "SPARK_PUBLIC_DNS=localhost" \
-  --mount type=bind,source="$(pwd)"/spark,target=/spark \
   --mount type=bind,source="$(pwd)"/build,target=/build \
   -v "$(pwd)"/conf/worker:/conf \
   -v "${ROOT_DIR}/build/.m2:${DOCKER_HOME_DIR}/.m2" \
