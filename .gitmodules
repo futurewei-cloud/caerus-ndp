@@ -1,0 +1,6 @@
+[submodule "spark-sql-perf"]
+	path = benchmark/spark-sql-perf
+	url = https://github.com/rf972/spark-sql-perf.git
+[submodule "tpch-dbgen"]
+	path = benchmark/tpch-dbgen
+	url = https://github.com/rf972/tpch-dbgen.git
