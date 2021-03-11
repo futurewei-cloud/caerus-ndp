@@ -44,16 +44,12 @@ object Pushdown {
   /**
    * `columns`, but as a String suitable for injection into a SQL query.
    */
-  def getColumnSchema(schema: StructType):
-                     (String, StructType) = {
+  def getColumnSchema(schema: StructType): String = {
 
     val sb = new StringBuilder()
     val columnNames = schema.map(_.name).toArray
-    var updatedSchema: StructType = new StructType()
-    updatedSchema = schema
     columnNames.foreach(x => sb.append(",").append(x))
-    (if (sb.length == 0) "" else sb.substring(1),
-     if (sb.length == 0) schema else updatedSchema)
+    if (sb.length == 0) "" else sb.substring(1)
   }
 
   /** Returns a string to represent the input query.

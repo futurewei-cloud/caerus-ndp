@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 ROOT_DIR=../datasource
 if [ ! -d    $ROOT_DIR/lib ]; then
   mkdir $ROOT_DIR/lib
@@ -12,7 +14,11 @@ fi
 #  exit 1
 #fi
 #cp $DIKECLIENTJAR $ROOT_DIR/lib
-
+if [ ! -f $ROOT_DIR/lib/ndp-hdfs-1.0.jar ]; then
+  echo "Please copy dikeHDFS client to datasource/lib before building datasource"
+  echo "For example: cp dikeHDFS/client/ndp-hdfs/target/ndp-hdfs-1.0.jar datasource/lib"
+  exit 1
+fi
 # Bring in environment including ${ROOT_DIR} etc.
 source ../spark/docker/setup.sh
 if [ "$#" -gt 0 ]; then

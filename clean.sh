@@ -8,3 +8,5 @@ cd ../benchmark
 
 cd ../spark
 ./clean.sh
+
+echo "Clean Done"
