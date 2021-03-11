@@ -71,7 +71,6 @@ class HdfsScan(schema: StructType,
         }
       }
     }
-    //logger.info(a.mkString(" "))
     a.toArray
   }
   /** Returns an Array of S3Partitions for a given input file.

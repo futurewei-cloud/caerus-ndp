@@ -1,4 +1,3 @@
-// scalastyle:off
 /*
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +11,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// scalastyle:on
 package com.github.datasource.hdfs
 
 import java.io.BufferedReader
@@ -35,7 +33,6 @@ import org.apache.hadoop.fs.BlockLocation
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.fs.FSDataInputStream
-//import org.apache.hadoop.hdfs.web.NdpHdfsFileSystem
 import org.dike.hdfs.NdpHdfsFileSystem
 import org.apache.hadoop.hdfs.web.TokenAspect
 import org.slf4j.LoggerFactory
@@ -110,15 +107,12 @@ class HdfsStore(schema: StructType,
   protected val logger = LoggerFactory.getLogger(getClass)
   protected val (readColumns: String,
                  readSchema: StructType) = {
-    var (columns, updatedSchema) = 
-      Pushdown.getColumnSchema(prunedSchema)
-    (columns,
-     if (updatedSchema.names.isEmpty) schema else updatedSchema)
+    var columns = Pushdown.getColumnSchema(prunedSchema)
+    (columns, schema)
   }
   protected val fileSystem = {
     val conf = new Configuration()
-    conf.set("dfs.datanode.drop.cache.behind.reads", "true")
-    conf.set("dfs.client.cache.readahead", "0")
+    // Configure to pick up our NDP Filesystem.
     conf.set("fs.ndphdfs.impl", classOf[org.dike.hdfs.NdpHdfsFileSystem].getName)
 
     if (path.contains("ndphdfs")) {
@@ -159,8 +153,7 @@ class HdfsStore(schema: StructType,
     val filePath = new Path(partition.name)
     val readParam = {
       if (!isPushdownNeeded ||
-          fileSystemType != "ndphdfs" ||
-          params.containsKey("DisableProcessor")) {
+          fileSystemType != "ndphdfs") {
         ""
       } else {
         val (requestQuery, requestSchema) =  {
@@ -180,8 +173,7 @@ class HdfsStore(schema: StructType,
      * This allows the NDP server to optimize further.
      */
     if (isPushdownNeeded &&
-        fileSystemType == "ndphdfs" &&
-        !params.containsKey("DisableProcessor")) {
+        fileSystemType == "ndphdfs") {
         val fs = fileSystem.asInstanceOf[NdpHdfsFileSystem]
         val inStrm = fs.open(filePath, 4096, readParam).asInstanceOf[FSDataInputStream]
         inStrm.seek(partition.offset)
@@ -199,7 +191,8 @@ class HdfsStore(schema: StructType,
    *  all the hdfs blocks in a file.
    *
    * @param fileName the full filename path
-   * @return BlockLocation objects for the file
+   * @return Map[String, BlockLocation] The Key is the filename 
+   *                     the value is the Array of BlockLocation
    */
   def getBlockList(fileName: String) : scala.collection.immutable.Map[String, Array[BlockLocation]] = {
     val fileToRead = new Path(fileName)
@@ -209,6 +202,9 @@ class HdfsStore(schema: StructType,
       // Use MaxValue to indicate we want info on all blocks.
       blockMap(fileName) = fileSystem.getFileBlockLocations(fileToRead, 0, Long.MaxValue)
     } else {
+      /* fileToRead is a directory. So get the contents of this directory.
+       * For each file in the directory create a new map entry with filename as key.
+       */
       val status = fileSystem.listStatus(fileToRead)
       for (item <- status) {
         if (item.isFile && item.getPath.getName.contains(".csv")) {
@@ -240,8 +236,7 @@ class HdfsStore(schema: StructType,
   @throws(classOf[Exception])
   def getPartitionInfo(partition: HdfsPartition) : (Long, Long) = {
     if (fileSystemType == "ndphdfs" &&
-        isPushdownNeeded &&
-        !params.containsKey("DisableProcessor")) {
+        isPushdownNeeded) {
       // No need to find offset, ndp server does this under the covers for us.
       // When Processor is disabled, we need to deal with partial lines for ourselves.
       return (partition.offset, partition.length)
