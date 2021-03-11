@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 ROOT_DIR=./perf-test
 if [ ! -d ${ROOT_DIR}/lib ]; then
   mkdir ${ROOT_DIR}/lib

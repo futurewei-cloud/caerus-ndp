@@ -1,5 +1,5 @@
 #!/bin/bash
-#ROOT_DIR=./
+set -e
 
 # Bring in environment including ${ROOT_DIR} etc.
 source ../spark/docker/setup.sh

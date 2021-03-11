@@ -1,22 +1,23 @@
 #! /bin/bash
+set -e
 
-echo "Building dockers"
+printf "\nBuilding dockers\n"
 cd spark/docker
-./build_docker.sh
+./build_docker.sh || (echo "*** docker build failed with $?" ; exit 1)
 cd ../..
-echo "Building dockers complete"
+printf "\nBuilding dockers complete\n"
 
-echo "Building benchmark"
+printf "\nBuilding benchmark\n"
 cd benchmark
-./build.sh
+./build.sh || (echo "*** benchmark build failed with $?" ; exit 1)
 cd ..
-echo "Building benchmark complete"
+printf "\nBuilding benchmark complete\n"
 
 
-echo "Building datasource"
+printf "\nBuilding datasource\n"
 cd datasource
-./build.sh
+./build.sh || (echo "*** datasource build failed with $?" ; exit 1)
 cd ..
-echo "Building datasource complete"
+printf "\nBuilding datasource complete\n"
 
-echo "Build of ndp complete"
+printf "\nBuild of ndp complete\n"

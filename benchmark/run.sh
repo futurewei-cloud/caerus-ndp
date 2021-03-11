@@ -14,6 +14,6 @@ else
   docker exec -it sparkmaster spark-submit --master local \
   --class com.github.perf.${TEST} \
   --packages com.github.scopt:scopt_2.12:4.0.0-RC2 \
-  --jars /benchmark/build/ndp-hdfs-1.0.jar,/benchmark/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/datasource/target/scala-2.12/ndp-datasource_2.12-0.1.0.jar \
+  --jars /datasource/lib/ndp-hdfs-1.0.jar,/benchmark/spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar,/datasource/target/scala-2.12/ndp-datasource_2.12-0.1.0.jar \
    /benchmark/perf-test/target/scala-2.12/perf-test_2.12-1.0.jar $@
 fi
