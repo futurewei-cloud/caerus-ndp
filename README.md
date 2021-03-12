@@ -1,8 +1,8 @@
 # caerus-ndp
 
-cd benchmark
-git submodule init
-git submodule update --recursive
+cd benchmark  
+git submodule init  
+git submodule update --recursive  
 
 # docker network create dike-net
 
