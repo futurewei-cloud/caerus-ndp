@@ -20,5 +20,5 @@ docker run --rm -p 8081:8081 \
   -v "${ROOT_DIR}/build/.cache:${DOCKER_HOME_DIR}/.cache" \
   -v "${ROOT_DIR}/build/.ivy2:${DOCKER_HOME_DIR}/.ivy2" \
   -u "${USER_ID}" \
-  "spark-run-rel-${USER_NAME}" bin/spark-class org.apache.spark.deploy.worker.Worker spark://sparkmaster:7077
+  "caerus-ndp-spark-base-${USER_NAME}" bin/spark-class org.apache.spark.deploy.worker.Worker spark://sparkmaster:7077
 
