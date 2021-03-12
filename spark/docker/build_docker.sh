@@ -46,14 +46,14 @@ fi
 echo "User id is: $USER_ID"
 echo "Group id is: $GROUP_ID"
 
-docker build -f Dockerfile -t spark_run_base .
-echo "Done building spark_run_base docker"
+docker build -f Dockerfile -t caerus-ndp-spark-base .
+echo "Done building caerus-ndp-spark-base docker"
 
 # Set the home directory in the Docker container.
 DOCKER_HOME_DIR=${DOCKER_HOME_DIR:-/home/${USER_NAME}}
 
-docker build -t "spark-run-rel-${USER_NAME}" - <<UserSpecificDocker
-FROM spark_run_base
+docker build -t "caerus-ndp-spark-base-${USER_NAME}" - <<UserSpecificDocker
+FROM caerus-ndp-spark-base
 RUN rm -f /var/log/faillog /var/log/lastlog
 RUN groupadd --non-unique -g ${GROUP_ID} ${USER_NAME}
 RUN useradd -g ${GROUP_ID} -u ${USER_ID} -k /root -m ${USER_NAME} -d "${DOCKER_HOME_DIR}"
@@ -68,6 +68,6 @@ RUN sudo chown -R ${USER_NAME}:${USER_NAME} /usr/spark-*
 EXPOSE 22
 
 UserSpecificDocker
-echo "Done building spark-run-rel-${USER_NAME}"
+echo "Done building caerus-ndp-spark-base-${USER_NAME}"
 
 echo "Done building dockers"

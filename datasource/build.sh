@@ -33,7 +33,7 @@ if [ "$#" -gt 0 ]; then
       -v "${ROOT_DIR}/build/.ivy2:${DOCKER_HOME_DIR}/.ivy2" \
       -u "${USER_ID}" \
       --entrypoint /bin/bash -w /datasource \
-      spark-build-${USER_NAME}
+      caerus-ndp-spark-base-${USER_NAME}
   fi
 else
   docker run --rm -it --name ndp_pushdown_build_debug \
@@ -46,5 +46,5 @@ else
     -v "${ROOT_DIR}/build/.ivy2:${DOCKER_HOME_DIR}/.ivy2" \
     -u "${USER_ID}" \
     --entrypoint /datasource/scripts/build.sh -w /datasource \
-    spark-build-${USER_NAME}
+    caerus-ndp-spark-base-${USER_NAME}
 fi

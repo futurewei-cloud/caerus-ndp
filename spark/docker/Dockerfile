@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 as spark_run_base
+FROM ubuntu:20.04 as caerus-ndp-spark-base
 LABEL version="1.0"
 LABEL maintainer="Robert Foley <robfoley972@gmail.com>"
 
@@ -38,6 +38,12 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
  && ln -s /usr/lib/jvm/java-8-openjdk-amd64/bin /usr/lib/jvm/bin
+
+# sbt
+RUN echo "deb https://dl.bintray.com/sbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list \
+ && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823 \
+ && apt-get update \
+ && apt-get install sbt
 
 # HADOOP
 ENV HADOOP_VERSION 3.2.2

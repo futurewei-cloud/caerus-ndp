@@ -19,4 +19,4 @@ docker run --rm -p 4040:4040 -p 6066:6066 -p 7077:7077 -p 8080:8080 -p 5005:5005
   -v "${ROOT_DIR}/build/.cache:${DOCKER_HOME_DIR}/.cache" \
   -v "${ROOT_DIR}/build/.ivy2:${DOCKER_HOME_DIR}/.ivy2" \
   -u "${USER_ID}" \
-  "spark-run-rel-${USER_NAME}" bin/spark-class org.apache.spark.deploy.master.Master -h sparkmaster
+  "caerus-ndp-spark-base-${USER_NAME}" bin/spark-class org.apache.spark.deploy.master.Master -h sparkmaster
