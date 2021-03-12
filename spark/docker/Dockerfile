@@ -64,7 +64,7 @@ RUN curl -sL --retry 3 \
   "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_PACKAGE}.tgz" \
   | gunzip \
   | tar x -C /usr/ \
- && mv /usr/$SPARK_PACKAGE $SPARK_HOME
+ && mv /usr/$SPARK_PACKAGE $SPARK_HOME \
  && chown -R root:root $SPARK_HOME
 # Configure maven to save artifacts under build
 
