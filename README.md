@@ -11,21 +11,21 @@ git submodule update --recursive
 docker network create dike-net
 ```
 
-To clean out all build or runtime artifacts
+Clean out all build or runtime artifacts
 ================================================
 
 ```bash
 ./clean.sh
 ```
 
-To build
+Build this repo
 ========
 
 ```bash
 ./build.sh
 ```
 
-To generate database (tpch)
+Generate database (tpch)
 ===========================
 
 1) Start hadoop
@@ -47,14 +47,14 @@ cd benchmark
 ./run.sh gen
 ```
 
-To run tpch test (csv data source)
+run tpch test (csv data source)
 ===================================
 
 ```bash
 ./run.sh run 
 ```
 
-To run tpch test (pushdown data source)
+run tpch test (pushdown data source)
 ========================================
 
 ```bash
