@@ -14,162 +14,153 @@
 
 package com.github.perf
 
-
-import org.apache.hadoop.fs.FileSystem
-import org.apache.spark.sql.functions._
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types._
-import com.databricks.spark.sql.perf.Benchmark
-import com.databricks.spark.sql.perf.tpcds.TPCDSTables
-import com.databricks.spark.sql.perf.tpcds.TPCDS
-import com.databricks.spark.sql.perf.tpch.TPCHTables
-import com.databricks.spark.sql.perf.tpch.TPCH
-
+import scala.collection.mutable.ArrayBuffer
 import org.slf4j.LoggerFactory
+import scopt.OParser
 
-class Database(testName: String, format: String = "csv") {
-  
-  private val log = LoggerFactory.getLogger(getClass)
-  val spark = SparkSession.builder()
-      .master("local[1]")
-      .appName("gen-db")
-      .getOrCreate();
-  val sqlContext = new org.apache.spark.sql.SQLContext(spark.sparkContext)
-  val rootDir = {
-    if (format == "csv") {
-      s"hdfs://dikehdfs:9000/${testName}" // root directory for generation
-      //s"/benchmark/build/tpch-data/${testName}"   // local filesystem directory.
-    } else {
-      s"ndphdfs://dikehdfs/${testName}" // root directory for ndp.
-    }
-  }
+/** The test configuration, which is mostly obtained through either
+ *  defaults or through command line parameters.
+ */
+case class Config(
+    var testNumbers: String = "",
+    var testList: ArrayBuffer[Integer] = ArrayBuffer.empty[Integer],
+    workers: Int = 1,
+    verbose: Boolean = false,
+    quiet: Boolean = false,
+    test: String = "tpch",
+    format: String = "csv",
+    gen: Boolean = false,
+    normal: Boolean = false,
+    kwargs: Map[String, String] = Map())
 
-  val statsType = if (format == "csv") "hdfs" else "ndphdfs"
-  val databaseName = s"${testName}"  // name of database to create.
-  val scaleFactor = "1" // scaleFactor defines the size of the dataset to generate (in GB).
-  val tables = {
-      if (testName == "tpch") {
-        new TPCHTables(sqlContext,
-        dbgenDir = "/benchmark/tpch-dbgen", // location of dbgen
-        scaleFactor = scaleFactor,
-        useDoubleForDecimal = false, // true to replace DecimalType with DoubleType
-        useStringForDate = true) // true to replace DateType with StringType
-      } else {
-        new TPCDSTables(sqlContext,
-        dsdgenDir = "/spark-sql-perf/tpcds-kit/tools", // location of dsdgen
-        scaleFactor = scaleFactor,
-        useDoubleForDecimal = false, // true to replace DecimalType with DoubleType
-        useStringForDate = true) // true to replace DateType with StringType
-      }
-    }
-
-  def createTemporaryTable(name: String, location: String, format: String,
-                           schema: StructType): Unit = {
-      println(s"Creating temporary table $name using data stored in $location.")
-      log.info(s"Creating temporary table $name using data stored in $location.")
-      sqlContext.read.format(format).schema(schema).load(location).createOrReplaceTempView(name)
-      //sqlContext.sql(s"CREATE TEMPORARY VIEW tpch.${name} AS SELECT * FROM ${name}")
-    }
-  def createTemporaryTables(location: String, format: String): Unit = {
-    
-    tables.tables.foreach { table =>
-      val tableLocation = s"${location}/${table.name}"
-      createTemporaryTable(table.name, tableLocation, format, table.schema)
-      //println(s"table: ${table.name}")
-      //spark.sql(s"DESCRIBE TABLE EXTENDED ${table.name}").show(900, false)
-      //spark.sql(s"SELECT COUNT(*) FROM ${table.name}").show(900, false)
-      //spark.sql(s"SELECT * FROM ${table.name}").show(900, false)
-    }
-  }
-  def genDb() {
-    // Run:
-    log.info(s"Starting genData for ${testName}")
-    tables.genData(
-        location = rootDir,
-        format = format,
-        overwrite = true, // overwrite the data that is already there
-        partitionTables = false, // create the partitioned fact tables 
-        clusterByPartitionColumns = true, // shuffle to get partitions coalesced into single files. 
-        filterOutNullPartitionValues = false, // true to filter out the partition with NULL key value
-        tableFilter = "", // "" means generate all tables
-        numPartitions = 1) // how many dsdgen partitions to run - number of input tasks.
-    
-    log.info("genData complete")
-    
-    // Create the specified database
-    spark.sql(s"create database $databaseName")
-  }
-  def getReadBytes() : Long = {
-    var stats = FileSystem.getStatistics
-    if (stats.containsKey(statsType)) stats.get(statsType).getBytesRead else 0
-  }
-  def runTest(test: Integer) : Unit = {
-    val resultLocation = s"/benchmark/${testName}-results-db" // place to write results
-    val iterations = 1 // how many iterations of queries to run.
-    val timeout = 24*60*60 // timeout, in seconds.
-
-    spark.sql(s"drop database if exists $databaseName cascade")
-    spark.sql(s"create database $databaseName")
-    spark.sql(s"use $databaseName")
-    tables.createTemporaryTables(rootDir, format)
-    spark.sql(s"DESCRIBE DATABASE EXTENDED $databaseName").show()
-    //spark.sql(s"SHOW TABLES FROM $databaseName").show()
-    //spark.sql(s"SHOW TABLE EXTENDED FROM $databaseName LIKE '*'").show(900, false)
-    val startBytes = getReadBytes
-    val experimentStatus: Benchmark.ExperimentStatus = {
-      if (testName == "tpch") {
-        val tpch = new TPCH (sqlContext = sqlContext)
-        val queries = tpch.queries.slice(test,test+1)
-        tpch.runExperiment(
-            queries, 
-            iterations = iterations,
-            resultLocation = resultLocation,
-            forkThread = true)                          
-      } else {
-        val tpcds = new TPCDS (sqlContext = sqlContext)
-        val queries = tpcds.tpcds2_4Queries.slice(test,test+1)
-        tpcds.runExperiment(
-            queries, 
-            iterations = iterations,
-            resultLocation = resultLocation,
-            forkThread = true)
-      }
-    }
-    experimentStatus.waitForFinish(timeout)
-    val totalBytes = getReadBytes - startBytes
-
-    experimentStatus.getCurrentResults 
-                .withColumn("Name", substring(col("name"), 2, 100))
-                .withColumn("Runtime", (col("parsingTime") + col("analysisTime") + 
-                            col("optimizationTime") + col("planningTime") + col("executionTime")) / 1000.0)
-                .select("Name", "result", "failure", "Runtime").show(200, false)
-  }
-  def runTests(testList: Array[Integer]) : Unit = {
-    for (i <- testList) {
-      runTest(i)
-    }
-  }
-}
-
+/** The performance test, which consists of a configuration
+ *  specified through the command line or through defaults.
+ *
+ */
 object PerfTest {
 
-  def main(args: Array[String]) {
-    if (args.length < 1) {
-        println("gen-db: [gen | run][csv | pushdown]")
-        return
+  private val log = LoggerFactory.getLogger(getClass)
+
+  /**
+   *  @param args - the array of argument parameters from the command line.
+   *
+   *  @return Config - the configuration object to use.
+   */
+  def parseArgs(args: Array[String]): Config = {
+    
+    val builder = OParser.builder[Config]
+    val parser = {
+      import builder._
+      OParser.sequence(
+        programName("Spark TPC Benchmark"),
+        head("tpch-test", "0.1"),
+        opt[String]('n', "num")
+          .action((x, c) => c.copy(testNumbers = x))
+          .text("test numbers"),
+        opt[Int]('w', "workers")
+          .action((x, c) => c.copy(workers = x.toInt))
+          .text("workers being used"),
+        opt[Unit]("gen")
+          .action((x, c) => c.copy(gen = true))
+          .text("generate the database"),
+        opt[String]("format")
+          .action((x, c) => c.copy(format = x))
+          .text("Data source format (csv, pushdown)"),
+        opt[String]("test")
+          .action((x, c) => c.copy(test = x))
+          .text("TPC Test (tpch, tpcds)"),
+        opt[Unit]("verbose")
+          .action((x, c) => c.copy(verbose = true))
+          .text("Enable verbose Spark output (TRACE log level )."),
+        opt[Unit]('q', "quiet")
+          .action((x, c) => c.copy(quiet = true))
+          .text("Limit output (WARN log level)."),
+        opt[Unit]("normal")
+          .action((x, c) => c.copy(normal = true))
+          .text("Normal log output (INFO log level)."),
+        help("help").text("prints this usage text"),
+      )
     }
-    val action = args(0)
-    val test = "tpch"
-    val format = if (args.length > 1) args(1) else "csv"
-    println(s"action: ${action} test: ${test} format: ${format}")
-    val db = new Database(test, format)
-    if (action == "gen") {
+    // OParser.parse returns Option[Config]
+    val optionConfig = OParser.parse(parser, args, Config())
+    validateConfig(optionConfig)
+  }
+
+  /** Returns a validated configuration object.
+   *  Note we also perform some processing of the parameters.
+   *  If there is no optional Config object passed in, then
+   *  we will return a default Config object.
+   *
+   * @param optionConfig - The optional configuration to validate
+   * @return Config - The config object to use.
+   */
+  def validateConfig(optionConfig: Option[Config]): Config = {
+            
+    val config = optionConfig match {
+        case Some(config) =>
+          processTestList(config)
+          config
+        case _ =>
+          // arguments are bad, error message will have been displayed
+          System.exit(1)
+          new Config
+    }
+
+    if (!config.gen && (config.testList.length == 0)) {      
+      log.info("\n\nNot enough arguments. Either --gen or -n must be selected.")
+      System.exit(1)
+    }
+    config
+  }
+  def processTestList(config: Config): Unit = {
+
+    val maxTests = TpcDatabase.getNumTests(config.test)
+    if (config.testNumbers == "") {
+      config.testNumbers = s"1-$maxTests"
+    }
+    val ranges = config.testNumbers.split(",")
+    for (r <- ranges) {
+      if (r.contains("-")) {
+        val numbers = r.split("-")
+        if (numbers.length == 2) {
+          for (i <- numbers(0).toInt to numbers(1).toInt) {
+            config.testList += i
+          }
+        }
+      } else {
+        config.testList += r.toInt
+      }
+    }
+  }
+  /** The main entry point for this performance test.
+   *  Here we will parse the args, and create a new database object to
+   *  run the test or generate the database for.
+   *
+   * @param args - The command line args.
+   * @return Unit
+   */
+  def main(args: Array[String]) {
+    val config = parseArgs(args)
+    
+    log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")} format: ${config.format}")
+
+    val db = new TpcDatabase(config.test, config.format)
+
+    /* Either generate the database or run the test(s)
+     */
+    if (config.gen) {
       db.genDb
     } else {
-      val testList: Array[Integer] = Array(0)
-      println("***  Starting Test Run ***")
-      db.runTests(testList)
-      println("***  Test Run Completed ***")
+      if (config.gen) {
+        println(s"gen: ${config.gen}")
+      } else {        
+        println(s"tests: ${config.testList}")
+      }
+      println(s"test: ${config.test}")
+      println(s"format: ${config.format}")
+      log.info("***  Starting Test Run ***")
+      db.runTests(config.testList.toArray)
+      log.info("***  Test Run Completed ***")
     }
   }
 }
