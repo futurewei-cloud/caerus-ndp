@@ -10,4 +10,5 @@ libraryDependencies ++= Seq(
   "org.scalatest" % "scalatest_2.12" % "3.2.2",
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
+  "com.github.scopt" %% "scopt" % "4.0.0-RC2",
 )
