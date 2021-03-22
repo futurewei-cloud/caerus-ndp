@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<!--
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License. See accompanying LICENSE file.
+-->
+
+<!-- Put site-specific property overrides in this file. -->
+
+<configuration>
+    <property>
+        <name>fs.defaultFS</name>
+        <!-- <value>hdfs://dikehdfs:9000/</value> -->
+        <value>webhdfs://dikehdfs:9870/</value>
+    </property>
+    <property>
+        <name>fs.file.impl</name>
+        <value>org.apache.hadoop.fs.LocalFileSystem</value>
+        <description>The FileSystem for file: uris.</description>
+    </property>
+
+    <property>
+        <name>fs.hdfs.impl</name>
+        <value>org.apache.hadoop.hdfs.DistributedFileSystem</value>
+        <description>The FileSystem for hdfs: uris.</description>
+    </property>
+
+    <property>
+        <name>fs.webhdfs.impl</name>
+        <value>org.apache.hadoop.hdfs.web.WebHdfsFileSystem</value>
+        <description>The FileSystem for webhdfs: uris.</description>
+    </property>
+
+    <property>
+        <name>fs.ndphdfs.impl</name>
+        <value>org.dike.hdfs.NdpHdfsFileSystem</value>
+        <description>The FileSystem for ndphdfs: uris.</description>
+    </property>
+
+</configuration>
+
+<!--
+https://issues.apache.org/jira/browse/HDFS-9427
+The patch updates the HDFS default HTTP/RPC ports to non-ephemeral ports. The changes are listed below:
+Namenode ports:     50470 -> 9871, 50070 -> 9870, 8020 -> 9820
+Secondary NN ports: 50091 -> 9869, 50090 -> 9868
+Datanode ports:     50020 -> 9867, 50010 -> 9866, 50475 -> 9865, 50075 -> 9864
+-->
