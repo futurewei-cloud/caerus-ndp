@@ -53,11 +53,11 @@
     </property>
     -->
 
-     <!--
+    
     <property>
         <name>dfs.datanode.httpserver.filter.handlers</name>               
-        <value>org.apache.hadoop.hdfs.server.datanode.web.NdpWebHdfsFilterOutHandler</value>
+        <value>org.apache.hadoop.hdfs.server.datanode.web.ProjectionPlugin</value>
     </property>
-    -->
+    
 
 </configuration>

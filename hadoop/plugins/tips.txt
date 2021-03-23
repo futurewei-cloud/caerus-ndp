@@ -1,0 +1,1 @@
+mvn -B archetype:generate -DarchetypeGroupId=org.apache.maven.archetypes -DgroupId=org.dike.hdfs -DartifactId=projection-plugin
