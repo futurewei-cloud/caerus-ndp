@@ -1,11 +1,11 @@
 #! /bin/bash
 set -e
 
-printf "\nBuilding dockers\n"
+printf "\nBuilding spark/docker\n"
 cd spark/docker
 ./build_docker.sh || (echo "*** docker build failed with $?" ; exit 1)
 cd ../..
-printf "\nBuilding dockers complete\n"
+printf "\nBuilding spark/docker complete\n"
 
 printf "\nBuilding benchmark\n"
 cd benchmark

@@ -17,56 +17,11 @@
 
 set -e               # exit on error
 
-cd "$(dirname "$0")" # connect to root
+pushd "$(dirname "$0")" # connect to root
 
 ROOT_DIR=$(pwd)
-DOCKER_DIR=docker
-DOCKER_FILE="${DOCKER_DIR}/Dockerfile"
-
-USER_NAME=${SUDO_USER:=$USER}
-USER_ID=$(id -u "${USER_NAME}")
-
-# Set the home directory in the Docker container.
-DOCKER_HOME_DIR=${DOCKER_HOME_DIR:-/home/${USER_NAME}}
-
-# If this env variable is empty, docker will be started
-# in non interactive mode
-DOCKER_INTERACTIVE_RUN="-i -t"
-
-CMD="/bin/bash"
-
-HADOOP_PATH=/opt/hadoop/hadoop-3.3.0
-
-# Create NameNode and DataNode mount points
-mkdir -p ${ROOT_DIR}/volume/namenode
-mkdir -p ${ROOT_DIR}/volume/datanode0
-
-# By mapping the .m2 directory you can do an mvn install from
-# within the container and use the result on your normal
-# system.  And this also is a significant speedup in subsequent
-# builds because the dependencies are downloaded only once.
-mkdir -p ${ROOT_DIR}/build/.m2
-mkdir -p ${ROOT_DIR}/build/.gnupg
-
-if [ "$#" -ge 1 ] ; then
-  CMD="$@"
-fi
-
-docker run --rm=true $DOCKER_INTERACTIVE_RUN \
-  -v "${ROOT_DIR}/volume/namenode:/opt/volume/namenode" \
-  -v "${ROOT_DIR}/volume/datanode0:/opt/volume/datanode" \
-  -v "${ROOT_DIR}/etc/hadoop/core-site.xml:${HADOOP_PATH}/etc/hadoop/core-site.xml" \
-  -v "${ROOT_DIR}/etc/hadoop/hdfs-site.xml:${HADOOP_PATH}/etc/hadoop/hdfs-site.xml" \
-  -v "${ROOT_DIR}/bin/start-hadoop.sh:${HADOOP_PATH}/bin/start-hadoop.sh" \
-  -v "${ROOT_DIR}/plugins:${DOCKER_HOME_DIR}/plugins" \
-  -v "${ROOT_DIR}/build/.m2:${DOCKER_HOME_DIR}/.m2" \
-  -v "${ROOT_DIR}/build/.gnupg:${DOCKER_HOME_DIR}/.gnupg" \
-  -w "${DOCKER_HOME_DIR}/plugins/projection-plugin" \
-  -e HADOOP_PATH=${HADOOP_PATH} \
-  -u "${USER_ID}" \
-  --network dike-net \
-  "hadoop-ndp-${USER_NAME}" ${CMD}
-
-#"$@"
-
-#--hostname master
+source ${ROOT_DIR}/config.sh
+${ROOT_DIR}/docker/build.sh  || (echo "*** docker/build.sh failed with $?" ; exit 1)
+${ROOT_DIR}/build_plugins.sh || (echo "*** build_plugins.sh failed with $?" ; exit 1)
+${ROOT_DIR}/build_clients.sh || (echo "*** build_clients.sh failed with $?" ; exit 1)
+popd

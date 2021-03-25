@@ -104,9 +104,11 @@ ENV MAVEN_OPTS -Xms256m -Xmx1536m
 
 
 RUN mkdir -p /opt/hadoop
-ENV HADOOP_VERSION hadoop-3.3.0
-# https://archive.apache.org/dist/hadoop/common/hadoop-3.3.0/hadoop-3.3.0.tar.gz
-RUN curl -L https://downloads.apache.org/hadoop/common/$HADOOP_VERSION/$HADOOP_VERSION.tar.gz | tar -xz -C /opt/hadoop
+ARG HADOOP_VERSION
+ENV ENV_HADOOP_VERSION=$HADOOP_VERSION
+
+RUN mkdir -p /opt/hadoop
+RUN curl -L https://downloads.apache.org/hadoop/common/hadoop-${ENV_HADOOP_VERSION}/hadoop-${ENV_HADOOP_VERSION}.tar.gz | tar -xz -C /opt/hadoop
 
 COPY entry.sh /usr/local/bin/entry.sh
 RUN chmod a+x /usr/local/bin/entry.sh
