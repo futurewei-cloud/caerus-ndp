@@ -49,7 +49,7 @@ for arg do
 done
 
 
-CMD="/bin/bash"
+CMD="bin/start-hadoop.sh"
 
 HADOOP_HOME=/opt/hadoop/hadoop-${HADOOP_VERSION}
 
