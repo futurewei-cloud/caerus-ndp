@@ -149,9 +149,10 @@ final class ProjectionPlugin
   }
 
   @Override
-  protected void encode(ChannelHandlerContext ctx, Object msg, List<Object> out) throws Exception {    
-    if (msg instanceof ByteBuf) {      
-      Parser parser = (Parser) ctx.channel().attr(AttributeKey.valueOf("NdpParser")).get();
+  protected void encode(ChannelHandlerContext ctx, Object msg, List<Object> out) throws Exception {
+    Parser parser = (Parser) ctx.channel().attr(AttributeKey.valueOf("NdpParser")).get();
+
+    if (msg instanceof ByteBuf && parser != null) {      
       if (parser.is_done()) {
         //ChannelFuture future = ctx.channel().close();        
         Boolean flushInProgress = (Boolean) ctx.channel().attr(AttributeKey.valueOf("FlushInProgress")).get();
