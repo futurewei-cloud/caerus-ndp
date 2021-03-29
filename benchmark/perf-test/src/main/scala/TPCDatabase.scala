@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory
  * @param testName - Kind of test to run, either "tpch" or "tpcds"
  * @param format - either "csv" or "pushdown" - To use our own csv data source with pushdown.
  */
-class TpcDatabase(testName: String, format: String = "csv") {
+class TpcDatabase(testName: String, host: String, format: String = "csv") {
   
   private val log = LoggerFactory.getLogger(getClass)
   val spark = SparkSession.builder()
@@ -44,10 +44,10 @@ class TpcDatabase(testName: String, format: String = "csv") {
   
   val rootDir = {
     if (format == "csv" || format == "parquet") {
-      s"hdfs://dikehdfs:9000/${testName}-${format}" // root directory for generation
+      s"hdfs://${host}:9000/${testName}-${format}" // root directory for generation
       //s"/benchmark/build/tpch-data/${testName}"   // local filesystem directory.
     } else {
-      s"ndphdfs://dikehdfs/${testName}-csv" // root directory for ndp.
+      s"ndphdfs://${host}/${testName}-csv" // root directory for ndp.
     }
   }
 

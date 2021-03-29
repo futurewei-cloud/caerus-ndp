@@ -36,7 +36,7 @@ case class DiffConfig(
     var testNumbers: String = "",
     baselinePath: String = "",
     resultsPath: String = "",
-    format: String = "csv",
+    format: String = "parquet",
     test: String = "tpch",
     var testList: ArrayBuffer[Integer] = ArrayBuffer.empty[Integer],
     verbose: Boolean = false,

@@ -26,6 +26,7 @@ case class Config(
     var testList: ArrayBuffer[Integer] = ArrayBuffer.empty[Integer],
     workers: Int = 1,
     verbose: Boolean = false,
+    host: String = "hadoop-ndp",
     quiet: Boolean = false,
     test: String = "tpch",
     format: String = "csv",
@@ -120,15 +121,13 @@ object PerfTest {
     }
     val ranges = config.testNumbers.split(",")
     for (r <- ranges) {
-      if (r.contains("-")) {
-        val numbers = r.split("-")
-        if (numbers.length == 2) {
-          for (i <- numbers(0).toInt to numbers(1).toInt) {
-            config.testList += i
-          }
+      val numbers = r.split("-")
+      if (numbers.length == 1) {
+        config.testList += numbers(0).toInt
+      } else if (numbers.length > 1) {
+        for (i <- numbers(0).toInt to numbers(1).toInt) {
+          config.testList += i
         }
-      } else {
-        config.testList += r.toInt
       }
     }
   }
@@ -144,7 +143,7 @@ object PerfTest {
     
     log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")} format: ${config.format}")
 
-    val db = new TpcDatabase(config.test, config.format)
+    val db = new TpcDatabase(config.test, config.host, config.format)
 
     /* Either generate the database or run the test(s)
      */
