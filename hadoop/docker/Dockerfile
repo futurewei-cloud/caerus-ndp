@@ -102,7 +102,6 @@ ENV FINDBUGS_HOME /usr
 ###
 ENV MAVEN_OPTS -Xms256m -Xmx1536m
 
-
 RUN mkdir -p /opt/hadoop
 ARG HADOOP_VERSION
 ENV ENV_HADOOP_VERSION=$HADOOP_VERSION
@@ -113,4 +112,4 @@ RUN curl -L https://downloads.apache.org/hadoop/common/hadoop-${ENV_HADOOP_VERSI
 COPY entry.sh /usr/local/bin/entry.sh
 RUN chmod a+x /usr/local/bin/entry.sh
 
-ENTRYPOINT ["/bin/bash", "/usr/local/bin/entry.sh"]
+ENTRYPOINT ["/usr/local/bin/entry.sh"]

@@ -4,3 +4,16 @@ mvn -B archetype:generate -DarchetypeGroupId=org.apache.maven.archetypes -Dgroup
 
 mvn package -DskipTests
 
+
+
+
+
+
+echo "/usr/lib/jvm/java-11-openjdk-amd64/bin/java -Dproc_datanode -Djava.net.preferIPv4Stack=true \
+-Dhadoop.security.logger=ERROR,RFAS -Dyarn.log.dir=/opt/hadoop/hadoop-3.2.2/logs \
+-Dyarn.log.file=hadoop-peter-datanode-dikehdfs.log -Dyarn.home.dir=/opt/hadoop/hadoop-3.2.2 \
+-Dyarn.root.logger=INFO,console -Djava.library.path=/opt/hadoop/hadoop-3.2.2/lib/native \
+-Dhadoop.log.dir=/opt/hadoop/hadoop-3.2.2/logs \
+-Dhadoop.log.file=hadoop-peter-datanode-dikehdfs.log -Dhadoop.home.dir=/opt/hadoop/hadoop-3.2.2 \
+-Dhadoop.id.str=peter -Dhadoop.root.logger=INFO,RFA \
+-Dhadoop.policy.file=hadoop-policy.xml org.apache.hadoop.hdfs.server.datanode.DataNode"

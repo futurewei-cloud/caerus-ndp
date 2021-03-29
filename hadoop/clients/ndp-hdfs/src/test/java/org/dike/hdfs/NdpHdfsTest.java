@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.commons.io.input.BoundedInputStream;
 
 /**
  * Unit test for NdpHdfsFileSystem.
@@ -128,9 +129,58 @@ public class NdpHdfsTest
         } catch (Exception ex) {
             ex.printStackTrace();
             assertTrue( false );
+        }        
+    }
+
+    @Test
+    @DisplayName("Simple NoPushdown test")
+    public void testNoPushdown()
+    {
+        long totalDataSize = 0;
+        long totalRecords = 0;
+
+        final Path fname = new Path("/lineitem.csv");
+        String hadoopPath = System.getenv("HADOOP_PATH");
+        assertTrue( hadoopPath != null );        
+        Configuration conf = new Configuration();
+        assertTrue( conf != null );
+        conf.addResource( new Path(hadoopPath + "/etc/hadoop/core-client.xml") );
+        conf.addResource( new Path(hadoopPath + "/etc/hadoop/hdfs-site.xml") );
+
+        System.out.println(conf.get("fs.defaultFS"));
+        Path ndpHdfsPath = new Path("ndphdfs://hadoop-ndp:9870/");
+        try {
+            FileSystem fs = FileSystem.get(ndpHdfsPath.toUri(), conf);
+            BlockLocation[] locs = fs.getFileBlockLocations(fname, 0, Long.MAX_VALUE);
+           for (BlockLocation loc : locs) {
+                System.out.format("Offset=%d Length=%d\n", loc.getOffset(), loc.getLength());
+                FSDataInputStream is = fs.open(fname);
+                is.seek(loc.getOffset());
+                BufferedReader br = new BufferedReader(new InputStreamReader(new BoundedInputStream(is, loc.getLength())));
+                    String record = br.readLine();
+                    int counter = 0;
+                    while (record != null) {
+                        if(counter < 5) {
+                            System.out.println(record);
+                        }
+
+                        totalDataSize += record.length() + 1; // +1 to count end of line
+                        totalRecords += 1;
+                        counter += 1;
+
+                        record = br.readLine(); // Should be last !!!
+                    }
+                    br.close();
+            }
+        } catch (FileNotFoundException ex){
+            System.out.println(ex.getMessage());
+            assertTrue( false );
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            assertTrue( false );
         }
 
 
         assertTrue( true );
-    }
+    }    
 }

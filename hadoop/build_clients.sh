@@ -26,13 +26,19 @@ USER_NAME=${SUDO_USER:=$USER}
 USER_ID=$(id -u "${USER_NAME}")
 
 # Set the home directory in the Docker container.
-DOCKER_HOME_DIR=${DOCKER_HOME_DIR:-/home/${USER_NAME}}
+DOCKER_HOME_DIR=/home/${USER_NAME}
 
 # If this env variable is empty, docker will be started
 # in non interactive mode
 DOCKER_INTERACTIVE_RUN="-i -t"
 
 CMD="clients/build.sh"
+RUNNING_MODE="interactive"
+
+if [ "$#" -ge 1 ] ; then
+  CMD="$@"  
+fi
+
 
 HADOOP_PATH=/opt/hadoop/hadoop-${HADOOP_VERSION}
 
@@ -46,10 +52,6 @@ mkdir -p ${ROOT_DIR}/build/.gnupg
 # Can be used to share data for tests
 mkdir -p ${ROOT_DIR}/build/data
 
-if [ "$#" -ge 1 ] ; then
-  CMD="$@"
-fi
-
 docker run --rm=true $DOCKER_INTERACTIVE_RUN \
   -v "${ROOT_DIR}/etc/hadoop/core-site.xml:${HADOOP_PATH}/etc/hadoop/core-site.xml" \
   -v "${ROOT_DIR}/etc/hadoop/hdfs-site.xml:${HADOOP_PATH}/etc/hadoop/hdfs-site.xml" \
@@ -62,6 +64,7 @@ docker run --rm=true $DOCKER_INTERACTIVE_RUN \
   -v "${ROOT_DIR}/build/data:${DOCKER_HOME_DIR}/data" \
   -w "${DOCKER_HOME_DIR}" \
   -e HADOOP_PATH=${HADOOP_PATH} \
+  -e RUNNING_MODE=${RUNNING_MODE} \
   -u "${USER_ID}" \
   --network dike-net \
   "hadoop-${HADOOP_VERSION}-ndp-${USER_NAME}" ${CMD}
