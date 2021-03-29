@@ -97,7 +97,7 @@ class HdfsStore(schema: StructType,
   protected val endpoint = {
     val server = path.split("/")(2)
     if (path.contains("ndphdfs://")) {
-      ("ndphdfs://" + server + ":9860")
+      ("ndphdfs://" + server + ":9870")
     } else if (path.contains("webhdfs://")) {
       ("webhdfs://" + server + ":9870")
     } else {
@@ -126,7 +126,7 @@ class HdfsStore(schema: StructType,
     val server = path.split("/")(2)
     var pathName = { 
       if (path.contains("ndphdfs://")) {
-        val str = path.replace("ndphdfs://" + server, "ndphdfs://" + server + ":9860")
+        val str = path.replace("ndphdfs://" + server, "ndphdfs://" + server + ":9870")
         str
       } else if (path.contains("webhdfs")) {
         path.replace(server, server + ":9870")
@@ -137,7 +137,14 @@ class HdfsStore(schema: StructType,
     pathName
   }
   protected val fileSystemType = fileSystem.getScheme
-
+  def getSchemaIndex(schema: StructType, name: String): Integer = {
+    for (i <- 0 to schema.fields.size) {
+      if (schema.fields(i).name == name) {
+        return i
+      }
+    }
+    -1
+  }
   /** Returns a reader for a given Hdfs partition.
    *  Determines the correct start offset by looking backwards
    *  to find the end of the prior line.
@@ -156,16 +163,10 @@ class HdfsStore(schema: StructType,
           fileSystemType != "ndphdfs") {
         ""
       } else {
-        val (requestQuery, requestSchema) =  {
-          if (fileSystemType == "ndphdfs") {
-            (Pushdown.queryFromSchema(schema, readSchema, readColumns,
-                                      partition),
-            Pushdown.schemaString(schema))
-          } else {
-            ("", "")
-          }
-        }
-        new ProcessorRequest(requestSchema, requestQuery, partition.length).toXml
+        val projectColumns = prunedSchema.fields.map(x => {
+            getSchemaIndex(schema, x.name)
+        }).mkString(",")
+        new ProcessorRequest(schema.fields.size.toString, projectColumns, partition.length).toXml
       }
     }
     /* When we are targeting ndphdfs, but we do not have a pushdown,
@@ -196,7 +197,6 @@ class HdfsStore(schema: StructType,
    */
   def getBlockList(fileName: String) : scala.collection.immutable.Map[String, Array[BlockLocation]] = {
     val fileToRead = new Path(fileName)
-    val fileStatus = fileSystem.getFileStatus(fileToRead)
     val blockMap = scala.collection.mutable.Map[String, Array[BlockLocation]]()
     if (fileSystem.isFile(fileToRead)) {
       // Use MaxValue to indicate we want info on all blocks.
@@ -235,8 +235,7 @@ class HdfsStore(schema: StructType,
    */
   @throws(classOf[Exception])
   def getPartitionInfo(partition: HdfsPartition) : (Long, Long) = {
-    if (fileSystemType == "ndphdfs" &&
-        isPushdownNeeded) {
+    if (fileSystemType == "ndphdfs" && isPushdownNeeded) {
       // No need to find offset, ndp server does this under the covers for us.
       // When Processor is disabled, we need to deal with partial lines for ourselves.
       return (partition.offset, partition.length)
@@ -272,7 +271,7 @@ class HdfsStore(schema: StructType,
         partitionLength += 1
       }
     } while ((nextChar.toChar != '\n') && (nextChar != -1));
-    //println(s"partition: ${partition.index} offset: ${startOffset} length: ${partitionLength}")
+    println(s"partition: ${partition.index} offset: ${startOffset} length: ${partitionLength}")
     (startOffset, partitionLength)
   }
   /** Returns an Iterator over InternalRow for a given Hdfs partition.
@@ -283,7 +282,7 @@ class HdfsStore(schema: StructType,
   def getRowIter(partition: HdfsPartition): Iterator[InternalRow] = {
     val (offset, length) = getPartitionInfo(partition)
     RowIteratorFactory.getIterator(getReader(partition, offset, length),
-                                   readSchema,
+                                   prunedSchema,
                                    fileFormat)
   }
 }
@@ -300,7 +299,7 @@ object HdfsStore {
    * @return true if pushdown supported, false otherwise.
    */
   def pushdownSupported(options: util.Map[String, String]): Boolean = {
-    if (false && options.get("path").contains("ndphdfs://")) {
+    if (options.get("path").contains("ndphdfs://")) {
       true
     } else {
       // other filesystems like hdfs and webhdfs do not support pushdown.

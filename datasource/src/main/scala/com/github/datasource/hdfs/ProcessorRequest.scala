@@ -22,26 +22,24 @@ import org.apache.spark.Partition
 import org.apache.spark.sql.connector.read.InputPartition
 
 /** Is a request or message to be sent to a server to 
- *  query data and other extraneous processing of that data.
+ *  perform the peroject operation to prune columns.
  *
- * @param schema the representation of the column data
+ * @param columns number of columns
+ * @param project comma separated list of numbers
  * @param query the SQL operation to perform or empty string if none.
  */
-class ProcessorRequest(schema: String,
-                       query: String,
+class ProcessorRequest(columns: String,
+                       project: String,
                        blockSize: Long) {
 
     def toXml : String = {
         val root = <Processor>
-                     <Name>dikeSQL</Name>
-                     <Version>0.1 </Version>
+                     <Name>Project</Name>
                      <Configuration>
-                       <Schema>{schema}</Schema>
-                       <Query>{scala.xml.PCData(query)}</Query>
+                       <SkipHeader>false</SkipHeader>
+                       <Columns>{columns}</Columns>
+                       <Project>{project}</Project>
                        <BlockSize>{blockSize}</BlockSize>
-                       <FieldDelimiter>{','.toInt}</FieldDelimiter>
-                       <RowDelimiter>{'\n'.toInt}</RowDelimiter>
-                       <QuoteDelimiter>{'"'.toInt}</QuoteDelimiter>
                      </Configuration>
                    </Processor>
         val writer = new StringWriter

@@ -7,12 +7,17 @@ cd spark/docker
 cd ../..
 printf "\nBuilding spark/docker complete\n"
 
+printf "\nBuilding hadoop\n"
+cd hadoop
+./build.sh || (echo "*** hadoop build failed with $?" ; exit 1)
+cd ..
+printf "\nBuilding hadoop complete\n"
+
 printf "\nBuilding benchmark\n"
 cd benchmark
 ./build.sh || (echo "*** benchmark build failed with $?" ; exit 1)
 cd ..
 printf "\nBuilding benchmark complete\n"
-
 
 printf "\nBuilding datasource\n"
 cd datasource
