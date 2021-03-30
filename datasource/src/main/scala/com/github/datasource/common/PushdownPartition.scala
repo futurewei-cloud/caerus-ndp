@@ -17,7 +17,7 @@
 package com.github.datasource.common
 
 /**
- * InputPartitions should implement this trait so that they can 
+ * InputPartitions should implement this trait so that they can
  * provide details needed by a pushdown data source.
  *
  */

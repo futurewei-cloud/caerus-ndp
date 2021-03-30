@@ -80,7 +80,7 @@ object Pushdown {
    * @return String representing the table's columns.
    */
   def schemaString(schema: StructType): String = {
-    
+
     schema.fields.map(x => {
       val dataTypeString = {
         x.dataType match {

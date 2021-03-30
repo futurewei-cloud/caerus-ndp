@@ -22,7 +22,7 @@ fi
 # Bring in environment including ${ROOT_DIR} etc.
 source ../spark/docker/setup.sh
 if [ "$#" -gt 0 ]; then
-  if [ "$1" == "debug" ]; then
+  if [ "$1" == "-d" ]; then
     docker run --rm -it --name ndp_pushdown_build_debug \
       --network dike-net \
       --mount type=bind,source="$(pwd)"/../datasource,target=/datasource  \

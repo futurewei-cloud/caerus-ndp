@@ -18,21 +18,21 @@ package com.github.datasource.parse
 
 import java.io.BufferedReader
 import java.io.BufferedWriter
-import java.io.FileWriter
 import java.io.File
+import java.io.FileWriter
 import java.io.IOException
 import java.util.Locale
-import java.util
 
 import scala.collection.JavaConverters._
 
+import com.github.datasource.common.TypeCast
 import org.slf4j.LoggerFactory
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.InternalRow
+
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
-import com.github.datasource.common.TypeCast
 
 class Delimiters(var fieldDelim: Char,
                  var lineDelim: Char = '\n',
@@ -125,7 +125,6 @@ class RowIterator(rowReader: BufferedReader,
       }
     }
     if (index >= schema.fields.length) {
-      if ((index % 1000) == 0) println(row.toString)
       rows += 1
       new GenericInternalRow(row)
     } else {
@@ -133,7 +132,8 @@ class RowIterator(rowReader: BufferedReader,
        * the next partition will pick up this row.
        * This can be expected for some protocols, thus there is no tracing by default.
        */
-      //println(s"line too short rows:${rows} received fields:${index}/${schema.fields.length}: ${line}")
+      // logger.info(s"line too short rows:${rows} " +
+      //             s"received fields:${index}/${schema.fields.length}: ${line}")
       InternalRow.empty
     }
   }
@@ -145,7 +145,7 @@ class RowIterator(rowReader: BufferedReader,
     val firstRow = getNextRow()
     firstRow
   }
-  /** Returns row following the current one, 
+  /** Returns row following the current one,
    *  (if availble), by parsing the next line.
    *
    * @return the next InternalRow object or InternalRow.empty if none.

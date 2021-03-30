@@ -16,9 +16,11 @@
  */
 package com.github.datasource.hdfs
 
+import com.github.datasource.common.PushdownPartition
+
 import org.apache.spark.Partition
 import org.apache.spark.sql.connector.read.InputPartition
-import com.github.datasource.common.PushdownPartition
+
 /** Represents a partition on an hdfs file system
  *
  * @param index the position in order of partitions.

@@ -16,12 +16,14 @@
  */
 package com.github.datasource.hdfs
 
-import scala.xml._
 import java.io.StringWriter
+
+import scala.xml._
+
 import org.apache.spark.Partition
 import org.apache.spark.sql.connector.read.InputPartition
 
-/** Is a request or message to be sent to a server to 
+/** Is a request or message to be sent to a server to
  *  perform the peroject operation to prune columns.
  *
  * @param columns number of columns
@@ -45,7 +47,7 @@ class ProcessorRequest(columns: String,
         val writer = new StringWriter
         XML.write(writer, root, "UTF-8", true, null)
         writer.flush()
-        //println(writer.toString.replace("\n", "").replace("  ", ""))
+        // println(writer.toString.replace("\n", "").replace("  ", ""))
         writer.toString.replace("\n", "")
     }
 }

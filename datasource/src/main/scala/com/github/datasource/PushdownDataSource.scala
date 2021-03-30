@@ -21,19 +21,18 @@ import java.util
 import scala.collection.JavaConverters._
 
 import com.github.datasource.common.Pushdown
-import com.github.datasource.hdfs.HdfsStore
+import com.github.datasource.hdfs.{HdfsScan, HdfsStore}
 import org.slf4j.LoggerFactory
 
 import org.apache.spark.sql.connector.catalog.{SessionConfigSupport, SupportsRead,
                                                Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.connector.read._
-import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.sources._
+import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-import com.github.datasource.hdfs.HdfsScan
 
 /** Creates a data source object for Spark that
  *  supports pushdown of predicates such as Project, and Filter.
@@ -111,7 +110,7 @@ class PushdownScanBuilder(schema: StructType,
    *
    * @return the scan object either a HdfsScan
    */
-  override def build(): Scan = {    
+  override def build(): Scan = {
     if (!options.get("path").contains("hdfs")) {
       throw new Exception(s"endpoint ${options.get("endpoint")} is unexpected")
     }
@@ -121,7 +120,7 @@ class PushdownScanBuilder(schema: StructType,
    *
    * @return true if pushdown supported, false otherwise
    */
-  private def pushdownSupported(): Boolean = {    
+  private def pushdownSupported(): Boolean = {
     if (!options.get("path").contains("hdfs")) {
       throw new Exception(s"path ${options.get("path")} is unexpected")
     }

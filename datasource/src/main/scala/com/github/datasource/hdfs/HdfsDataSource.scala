@@ -21,9 +21,9 @@ import java.util
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer}
 
+import org.apache.hadoop.fs.BlockLocation
 import org.slf4j.LoggerFactory
 
-import org.apache.hadoop.fs.BlockLocation
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.connector.read._
 import org.apache.spark.sql.sources._
@@ -84,7 +84,7 @@ class HdfsScan(schema: StructType,
   private def getPartitions(): Array[InputPartition] = {
     var store: HdfsStore = HdfsStoreFactory.getStore(schema, options,
                                                      prunedSchema)
-    val fileName = store.filePath                                              
+    val fileName = store.filePath
     val blocks : Map[String, Array[BlockLocation]] = store.getBlockList(fileName)
     createPartitions(blocks, store)
   }
@@ -133,7 +133,7 @@ class HdfsPartitionReader(schema: StructType,
   /* We setup a rowIterator and then read/parse
    * each row as it is asked for.
    */
-  private var store: HdfsStore = HdfsStoreFactory.getStore(schema, options, 
+  private var store: HdfsStore = HdfsStoreFactory.getStore(schema, options,
                                                            prunedSchema)
   private var rowIterator: Iterator[InternalRow] = store.getRowIter(partition)
 
@@ -145,8 +145,9 @@ class HdfsPartitionReader(schema: StructType,
     val row = rowIterator.next
     if (((index % 500000) == 0) ||
         (!next)) {
-      logger.info(s"""get: partition: ${partition.index} ${partition.offset} ${partition.length}""" + 
-                  s""" ${partition.name} index: ${index}""")
+      logger.info(s"get: partition: ${partition.index}"  +
+                  s" ${partition.offset} ${partition.length}" +
+                  s" ${partition.name} index: ${index}")
     }
     index = index + 1
     row

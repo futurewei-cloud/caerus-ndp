@@ -1,3 +1,4 @@
+// scalastyle:off
 /*
  * Copyright 2018 MinIO, Inc.
  *
@@ -13,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// scalastyle:on
 package com.github.datasource.common
 
 import java.math.BigDecimal
@@ -51,15 +53,15 @@ object TypeCast {
       dateFormatter: SimpleDateFormat = null): Any = {
       if (datum != nullValue) {
       castType match {
-        //case _: ByteType => datum.toByte
-        //case _: ShortType => datum.toShort
+        case _: ByteType => datum.toByte
+        case _: ShortType => datum.toShort
         case _: IntegerType => datum.toInt
         case _: LongType => datum.toLong
-        //case _: FloatType => Try(datum.toFloat)
-        //  .getOrElse(NumberFormat.getInstance(Locale.getDefault).parse(datum).floatValue())
+        case _: FloatType => Try(datum.toFloat)
+          .getOrElse(NumberFormat.getInstance(Locale.getDefault).parse(datum).floatValue())
         case _: DoubleType => Try(datum.toDouble)
           .getOrElse(NumberFormat.getInstance(Locale.getDefault).parse(datum).doubleValue())
-        //case _: BooleanType => datum.toBoolean
+        case _: BooleanType => datum.toBoolean
         case _: DecimalType => Decimal(datum.replaceAll(",", ""))
         case _: TimestampType if dateFormatter != null =>
           new Timestamp(dateFormatter.parse(datum).getTime)

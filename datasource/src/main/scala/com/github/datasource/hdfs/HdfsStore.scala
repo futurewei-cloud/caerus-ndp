@@ -1,9 +1,12 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,16 +28,18 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, ListBuffer, Map}
 import scala.util.control.NonFatal
 
+import com.github.datasource.common.Pushdown
+import com.github.datasource.parse.RowIteratorFactory
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.hdfs.web.WebHdfsFileSystem
 import org.apache.hadoop.fs.BlockLocation
-import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.fs.FSDataInputStream
-import org.dike.hdfs.NdpHdfsFileSystem
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hdfs.web.TokenAspect
+import org.apache.hadoop.hdfs.web.WebHdfsFileSystem
+import org.dike.hdfs.NdpHdfsFileSystem
 import org.slf4j.LoggerFactory
 
 import org.apache.spark.rdd.RDD
@@ -44,9 +49,6 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.connector.read._
 import org.apache.spark.sql.types._
-import com.github.datasource.parse.RowIteratorFactory
-
-import com.github.datasource.common.Pushdown
 
 /** A Factory to fetch the correct type of
  *  store object.
@@ -79,7 +81,7 @@ class HdfsStore(schema: StructType,
 
   override def toString() : String = "HdfsStore" + params
   protected val path = params.get("path")
-  protected val fileFormat =  {
+  protected val fileFormat = {
     if (params.containsKey("format")) {
       params.get("format")
     } else {
@@ -124,7 +126,7 @@ class HdfsStore(schema: StructType,
   }
   val filePath = {
     val server = path.split("/")(2)
-    var pathName = { 
+    var pathName = {
       if (path.contains("ndphdfs://")) {
         val str = path.replace("ndphdfs://" + server, "ndphdfs://" + server + ":9870")
         str
@@ -137,6 +139,13 @@ class HdfsStore(schema: StructType,
     pathName
   }
   protected val fileSystemType = fileSystem.getScheme
+  /** returns the index of a field matching an input name in a schema.
+   *
+   * @param schema the schema to scan
+   * @param name the name of the field to search for in schema
+   *
+   * @return Integer - The index of this field in the input schema.
+   */
   def getSchemaIndex(schema: StructType, name: String): Integer = {
     for (i <- 0 to schema.fields.size) {
       if (schema.fields(i).name == name) {
@@ -155,7 +164,7 @@ class HdfsStore(schema: StructType,
    * @param partition the partition to read
    * @return a new BufferedReader for this partition.
    */
-  def getReader(partition: HdfsPartition, 
+  def getReader(partition: HdfsPartition,
                 startOffset: Long = 0, length: Long = 0): BufferedReader = {
     val filePath = new Path(partition.name)
     val readParam = {
@@ -184,7 +193,7 @@ class HdfsStore(schema: StructType,
         if (fileSystemType == "ndphdfs") {
           logger.info(s"No Pushdown to ${fileSystemType} partition: ${partition.toString}")
         }
-        inStrm.seek(startOffset) 
+        inStrm.seek(startOffset)
         new BufferedReader(new InputStreamReader(new BoundedInputStream(inStrm, length)))
     }
   }
@@ -192,10 +201,12 @@ class HdfsStore(schema: StructType,
    *  all the hdfs blocks in a file.
    *
    * @param fileName the full filename path
-   * @return Map[String, BlockLocation] The Key is the filename 
+   * @return Map[String, BlockLocation] The Key is the filename
    *                     the value is the Array of BlockLocation
    */
-  def getBlockList(fileName: String) : scala.collection.immutable.Map[String, Array[BlockLocation]] = {
+  def getBlockList(fileName: String):
+    scala.collection.immutable.Map[String, Array[BlockLocation]] = {
+
     val fileToRead = new Path(fileName)
     val blockMap = scala.collection.mutable.Map[String, Array[BlockLocation]]()
     if (fileSystem.isFile(fileToRead)) {
@@ -255,7 +266,7 @@ class HdfsStore(schema: StructType,
         nextChar = reader.read
         startOffset += 1
       } while ((nextChar.toChar != '\n') && (nextChar != -1));
-    } 
+    }
     var partitionLength = (partition.offset + partition.length) - startOffset
     /* Scan up to the next line after the end of the partition.
      * We always include this next line to ensure we are reading full lines.
@@ -271,7 +282,6 @@ class HdfsStore(schema: StructType,
         partitionLength += 1
       }
     } while ((nextChar.toChar != '\n') && (nextChar != -1));
-    println(s"partition: ${partition.index} offset: ${startOffset} length: ${partitionLength}")
     (startOffset, partitionLength)
   }
   /** Returns an Iterator over InternalRow for a given Hdfs partition.
@@ -305,5 +315,5 @@ object HdfsStore {
       // other filesystems like hdfs and webhdfs do not support pushdown.
       false
     }
-  }  
+  }
 }
