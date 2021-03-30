@@ -18,7 +18,7 @@ cd ${ROOT_DIR}
 source ../../spark/docker/setup.sh
 
 if [ "$#" -gt 0 ]; then
-  if [ "$1" == "debug" ]; then
+  if [ "$1" == "-d" ]; then
     docker run --rm -it --name ndp_perf_test_build \
       --network dike-net \
       --mount type=bind,source="$(pwd)"/../../benchmark,target=/benchmark  \

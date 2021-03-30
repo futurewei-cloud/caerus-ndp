@@ -1,7 +1,10 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -11,10 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.github.perf
 
 import scala.collection.mutable.ArrayBuffer
+
 import org.slf4j.LoggerFactory
 import scopt.OParser
 
@@ -48,9 +51,9 @@ object PerfTest {
    *  @return Config - the configuration object to use.
    */
   def parseArgs(args: Array[String]): Config = {
-    
-    val builder = OParser.builder[Config]
+
     val parser = {
+      val builder = OParser.builder[Config]
       import builder._
       OParser.sequence(
         programName("Spark TPC Benchmark"),
@@ -79,7 +82,7 @@ object PerfTest {
         opt[Unit]("normal")
           .action((x, c) => c.copy(normal = true))
           .text("Normal log output (INFO log level)."),
-        help("help").text("prints this usage text"),
+        help("help").text("prints this usage text")
       )
     }
     // OParser.parse returns Option[Config]
@@ -96,7 +99,7 @@ object PerfTest {
    * @return Config - The config object to use.
    */
   def validateConfig(optionConfig: Option[Config]): Config = {
-            
+
     val config = optionConfig match {
         case Some(config) =>
           processTestList(config)
@@ -107,7 +110,7 @@ object PerfTest {
           new Config
     }
 
-    if (!config.gen && (config.testList.length == 0)) {      
+    if (!config.gen && (config.testList.length == 0)) {
       log.info("\n\nNot enough arguments. Either --gen or -n must be selected.")
       System.exit(1)
     }
@@ -140,7 +143,7 @@ object PerfTest {
    */
   def main(args: Array[String]) {
     val config = parseArgs(args)
-    
+
     log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")} format: ${config.format}")
 
     val db = new TpcDatabase(config.test, config.host, config.format)
@@ -151,12 +154,12 @@ object PerfTest {
       db.genDb
     } else {
       if (config.gen) {
-        println(s"gen: ${config.gen}")
-      } else {        
-        println(s"tests: ${config.testList}")
+        log.info(s"gen: ${config.gen}")
+      } else {
+        log.info(s"tests: ${config.testList}")
       }
-      println(s"test: ${config.test}")
-      println(s"format: ${config.format}")
+      log.info(s"test: ${config.test}")
+      log.info(s"format: ${config.format}")
       log.info("***  Starting Test Run ***")
       db.runTests(config.testList.toArray)
       log.info("***  Test Run Completed ***")
