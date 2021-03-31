@@ -1,6 +1,6 @@
 #!/bin/bash
 TEST=PerfTest
-if [ "$1" == "debug" ]; then
+if [ "$1" == "-d" ]; then
   echo "Debugging"
   shift
   docker exec -it sparkmaster spark-submit --master local \

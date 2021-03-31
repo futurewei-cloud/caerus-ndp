@@ -5,11 +5,16 @@ pushd spark
 popd
 
 pushd hadoop
-./start.sh bin/start_hadoop.sh || (echo "*** failed start of hadoop $?" ; exit 1)
+./start.sh || (echo "*** failed start of hadoop $?" ; exit 1)
+# Wait for hadoop to start before disabling safe mode.
+# at least 20 seconds is needed before hadoop accepts commands.
+echo "Waiting for hadoop to start"
+sleep 20
+./disable-safe-mode.sh || (echo "*** failed hadoop disable of safe mode$?" ; exit 1)
 popd
 
 pushd benchmark
-./run.sh --gen
+./test.sh --gen
 popd
 
 printf "\nSuccessfully started all servers.\n"

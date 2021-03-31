@@ -3,9 +3,9 @@ set -e
 
 printf "\nBuilding spark/docker\n"
 cd spark/docker
-./build_docker.sh || (echo "*** docker build failed with $?" ; exit 1)
+./build.sh || (echo "*** spark docker build failed with $?" ; exit 1)
 cd ../..
-printf "\nBuilding spark/docker complete\n"
+printf "\nBuilding spark docker complete\n"
 
 printf "\nBuilding hadoop\n"
 cd hadoop
