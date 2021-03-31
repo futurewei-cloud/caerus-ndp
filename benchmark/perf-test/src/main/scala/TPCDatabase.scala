@@ -51,6 +51,7 @@ class TpcDatabase(testSuite: String, host: String, format: String = "csv",
   val testAlias = {
     s"${testSuite}-${datasource}-${format}-${if (pushdown) { "pushdown" } else "nopush"}"
   }
+  val resultsDir = "/benchmark/results"
   val rootDir = {
     if (datasource == "spark") {
       s"hdfs://${host}:9000/${genDir}"
@@ -124,7 +125,7 @@ class TpcDatabase(testSuite: String, host: String, format: String = "csv",
    *  @return DataFrame - The test results including runtime, status, and bytes transferred.
    */
   def runTest(test: Int) : DataFrame = {
-    val resultLocation = s"/benchmark/${testSuite}-results-db" // place to write results
+    val resultLocation = s"${resultsDir}/${testSuite}-results-db" // place to write results
     val iterations = 1 // how many iterations of queries to run.
     val timeout = 24*60*60 // timeout, in seconds.
 
@@ -138,7 +139,7 @@ class TpcDatabase(testSuite: String, host: String, format: String = "csv",
     val experimentStatus: Benchmark.ExperimentStatus = {
       if (testSuite == "tpch") {
         val tpch = new TPCHWritable(sqlContext = sqlContext,
-          ExecutionMode.WriteParquet(s"/benchmark/test-output/${testAlias}"))
+          ExecutionMode.WriteParquet(s"${resultsDir}/test-output/${testAlias}"))
         val queries = tpch.queries.slice(test - 1, test)
         tpch.runExperiment(
             queries,
@@ -177,7 +178,7 @@ class TpcDatabase(testSuite: String, host: String, format: String = "csv",
       .format("csv")
       .option("header", "true")
       .option("partitions", "1")
-      .save(s"/benchmark/${testAlias}-result.csv")
+      .save(s"${resultsDir}/${testAlias}-result.csv")
     df.show(200, false)
   }
   /** Runs a list of tests and displays the results.
