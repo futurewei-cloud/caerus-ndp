@@ -6,8 +6,8 @@ rm -rf volume
 
 source docker/setup.sh
 
-DOCKERS = "caerus-ndp-spark-base caerus-ndp-spark-base-${USER_NAME}"
+DOCKERS="caerus-ndp-spark-base caerus-ndp-spark-base-${USER_NAME}"
 printf "\nspark: cleaning dockers: ${DOCKERS}\n"
-#docker rmi ${DOCKERS}
+docker rmi ${DOCKERS}
 
 printf "\nspark: cleaning done\n"

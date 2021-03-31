@@ -1,6 +1,7 @@
 #!/bin/bash
 
 rm -rf build
+rm -rf results
 
 cd tpch-dbgen
 make clean
