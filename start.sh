@@ -13,8 +13,4 @@ sleep 20
 ./disable-safe-mode.sh || (echo "*** failed hadoop disable of safe mode$?" ; exit 1)
 popd
 
-pushd benchmark
-./test.sh --gen
-popd
-
 printf "\nSuccessfully started all servers.\n"
