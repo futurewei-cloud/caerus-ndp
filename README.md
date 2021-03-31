@@ -4,15 +4,15 @@ Setup
 =========
 
 ```bash
-cd benchmark  
 git submodule init  
-git submodule update --recursive  
+git submodule update --recursive --progress
 
 docker network create dike-net
 ```
 
-Clean out all build or runtime artifacts
+Clean
 ================================================
+Clean out all build and runtime artifacts including dockers.
 
 ```bash
 ./clean.sh
@@ -25,38 +25,49 @@ Build this repo
 ./build.sh
 ```
 
-Generate database (tpch)
-===========================
+Demo test of NDP
+======================
 
-1) Start hadoop
-- TBD
-- Note, hdfs cluster needs to be running, start it manually for now.
+This demo script will automatically start the hadoop cluster and spark cluster.
+The script will then do a demo of a Spark query with no pushdown followed by a Spark query with pushdown enabled.  The user simply needs to press a key before each test or optionally use -quiet to avoid prompts.
 
-2) Start spark
+```
+# To run demo with prompts
+./demo.sh
 
-```bash
-cd spark
-./start_spark.sh
-cd ..
+# Or to avoid prompts
+./demo.sh -quiet
 ```
 
-3) generate database (tpch)
+Finally, bring down the servers.
 
-```bash
-cd benchmark
-./run.sh gen
+```
+./stop.sh
 ```
 
-run tpch test (csv data source)
-===================================
+Running a test manually
+======================
+The demo.sh above is a good example of this.
+First, bring up all the server code (hdfs, s3, spark)
 
-```bash
-./run.sh run 
+```
+./start.sh
 ```
 
-run tpch test (pushdown data source)
-========================================
+Next, use the test.sh script to run a TPC-H test using spark.  
 
-```bash
-./run.sh run pushdown
+For example:  To run TPC-H test 6 with pushdown followed by no pushdown.
+
+```
+# TPC-H test 6 with pushdown.
+test.sh -t 6 --pushdown
+
+# TPC-H test 6 with no pushdown.
+test.sh -t 6
+```
+
+Finally, bring down the servers.
+
+```
+./stop.sh
 ```
