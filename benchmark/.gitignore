@@ -1,5 +1,5 @@
 build/
-tpch-results-db/
+results/
 perf-test/build/
 perf-test/lib/
 perf-test/target/
