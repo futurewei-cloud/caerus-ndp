@@ -37,7 +37,6 @@ class TpcDatabase(testSuite: String, host: String, format: String = "csv",
                   pushdown: Boolean = false, datasource: String = "spark") {
 
   private val log = LoggerFactory.getLogger(getClass)
-  log.info(s"${testSuite},${host},${format},${pushdown},${datasource}")
   val spark = SparkSession.builder()
       .master("local[1]")
       .appName("gen-db")

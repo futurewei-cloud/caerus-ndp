@@ -27,6 +27,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
   "com.github.scopt" %% "scopt" % "4.0.0-RC2",
+  "com.typesafe" % "config" % "1.4.1"
 )
 
 lazy val compileScalastyle = taskKey[Unit]("compileScalastyle")

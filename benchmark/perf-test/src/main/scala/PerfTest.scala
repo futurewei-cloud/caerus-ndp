@@ -18,6 +18,7 @@ package com.github.perf
 
 import scala.collection.mutable.ArrayBuffer
 
+import com.typesafe.config._
 import org.slf4j.LoggerFactory
 import scopt.OParser
 
@@ -29,7 +30,7 @@ case class Config(
     var testList: ArrayBuffer[Integer] = ArrayBuffer.empty[Integer],
     workers: Int = 1,
     verbose: Boolean = false,
-    host: String = "hadoop-ndp",
+    var host: String = "",
     quiet: Boolean = false,
     pushdown: Boolean = false,
     var datasource: String = "",
@@ -72,6 +73,9 @@ object PerfTest {
         opt[Unit]("pushdown")
           .action((_, c) => c.copy(pushdown = true))
           .text("Enable pushdown."),
+        opt[String]("host")
+          .action((x, c) => c.copy(host = x))
+          .text("HDFS hostname"),
         opt[String]('s', "suite")
           .action((x, c) => c.copy(testSuite = x))
           .text("TPC Test suite (tpch (default), tpcds)"),
@@ -120,6 +124,12 @@ object PerfTest {
     } else {
       config.datasource = "spark"
     }
+    if (config.host == "") {
+        // The perf-test.conf file has a few parameters that
+        // contain our defaults.
+        val conf = ConfigFactory.load("perf-test")
+        config.host = conf.getString("perf-test.host")
+    }
     config
   }
   def processTestList(config: Config): Unit = {
@@ -152,7 +162,7 @@ object PerfTest {
 
     log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")}" +
              s" pushdown: ${config.pushdown} datasource: ${config.datasource}" +
-             s" format: ${config.format}")
+             s" format: ${config.format} host: ${config.host}")
 
     val db = new TpcDatabase(config.testSuite, config.host,
                              config.format, config.pushdown,
