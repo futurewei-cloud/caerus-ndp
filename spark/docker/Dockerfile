@@ -75,4 +75,9 @@ RUN curl -sL --retry 3 \
 # Configure maven to save artifacts under build
 
 WORKDIR $SPARK_HOME
-CMD ["bin/spark-class", "org.apache.spark.deploy.master.Master"]
+
+COPY entry.sh /usr/local/bin/entry.sh
+RUN chmod a+x /usr/local/bin/entry.sh
+
+ENTRYPOINT ["/usr/local/bin/entry.sh"]
+

@@ -1,3 +1,5 @@
 #!/bin/bash
 
-./docker/run_master.sh & sleep 5 && ./docker/run_worker.sh &
+./docker/start-master.sh && sleep 5 && ./docker/start-worker.sh
+
+sleep 5
