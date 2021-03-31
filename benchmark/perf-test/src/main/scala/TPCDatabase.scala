@@ -28,14 +28,16 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 
 /** A TPC-H or TPC-DS database object.  Supports either generating the
- *  database, or runnint tests on it.
+ *  database, or running tests on it.
  *
- * @param testName - Kind of test to run, either "tpch" or "tpcds"
+ * @param testSuite - Kind of test to run, either "tpch" or "tpcds"
  * @param format - either "csv" or "pushdown" - To use our own csv data source with pushdown.
  */
-class TpcDatabase(testName: String, host: String, format: String = "csv") {
+class TpcDatabase(testSuite: String, host: String, format: String = "csv",
+                  pushdown: Boolean = false, datasource: String = "spark") {
 
   private val log = LoggerFactory.getLogger(getClass)
+  log.info(s"${testSuite},${host},${format},${pushdown},${datasource}")
   val spark = SparkSession.builder()
       .master("local[1]")
       .appName("gen-db")
@@ -43,20 +45,25 @@ class TpcDatabase(testName: String, host: String, format: String = "csv") {
   import spark.implicits._
 
   val sqlContext = new org.apache.spark.sql.SQLContext(spark.sparkContext)
-
+  val genDir = {
+    s"${testSuite}-${format}"
+  }
+  val testAlias = {
+    s"${testSuite}-${datasource}-${format}-${if (pushdown) { "pushdown" } else "nopush"}"
+  }
   val rootDir = {
-    if (format == "csv" || format == "parquet") {
-      s"hdfs://${host}:9000/${testName}-${format}" // root directory for generation
+    if (datasource == "spark") {
+      s"hdfs://${host}:9000/${genDir}"
     } else {
-      s"ndphdfs://${host}/${testName}-csv" // root directory for ndp.
+      s"ndphdfs://${host}/${genDir}"
     }
   }
 
-  val statsType = if (format == "csv") "hdfs" else "ndphdfs"
-  val databaseName = s"${testName}"  // name of database to create.
+  val statsType = if (datasource == "ndp") "ndphdfs" else "hdfs"
+  val databaseName = s"${testSuite}"  // name of database to create.
   val scaleFactor = "1" // scaleFactor defines the size of the dataset to generate (in GB).
   val tables = {
-    if (testName == "tpch") {
+    if (testSuite == "tpch") {
       new TPCHTables(sqlContext,
       dbgenDir = "/benchmark/tpch-dbgen", // location of dbgen
       scaleFactor = scaleFactor,
@@ -78,7 +85,7 @@ class TpcDatabase(testName: String, host: String, format: String = "csv") {
    */
   def genDb(): Unit = {
     // Run:
-    log.info(s"Starting genData for ${testName}")
+    log.info(s"Starting genData for ${testSuite}")
     tables.genData(
         location = rootDir,
         format = format,
@@ -103,7 +110,13 @@ class TpcDatabase(testName: String, host: String, format: String = "csv") {
     var stats = FileSystem.getStatistics
     if (stats.containsKey(statsType)) stats.get(statsType).getBytesRead else 0
   }
-
+  private val dataSourceString = {
+    if (datasource == "ndp") {
+      "pushdown"
+    } else {
+      format
+    }
+  }
   /** Runs a test and returns the DataFrame with the results.
    *
    *  @param test - the number of the test to run
@@ -111,19 +124,21 @@ class TpcDatabase(testName: String, host: String, format: String = "csv") {
    *  @return DataFrame - The test results including runtime, status, and bytes transferred.
    */
   def runTest(test: Int) : DataFrame = {
-    val resultLocation = s"/benchmark/${testName}-results-db" // place to write results
+    val resultLocation = s"/benchmark/${testSuite}-results-db" // place to write results
     val iterations = 1 // how many iterations of queries to run.
     val timeout = 24*60*60 // timeout, in seconds.
 
     spark.sql(s"drop database if exists $databaseName cascade")
     spark.sql(s"create database $databaseName")
     spark.sql(s"use $databaseName")
-    tables.createTemporaryTables(rootDir, format)
+
+    log.info(s"ds: ${dataSourceString} rootDir: {$rootDir}")
+    tables.createTemporaryTables(rootDir, dataSourceString)
     val startBytes = getReadBytes
     val experimentStatus: Benchmark.ExperimentStatus = {
-      if (testName == "tpch") {
+      if (testSuite == "tpch") {
         val tpch = new TPCHWritable(sqlContext = sqlContext,
-          ExecutionMode.WriteParquet(s"/benchmark/test-output/${testName}-${format}"))
+          ExecutionMode.WriteParquet(s"/benchmark/test-output/${testAlias}"))
         val queries = tpch.queries.slice(test - 1, test)
         tpch.runExperiment(
             queries,
@@ -162,7 +177,7 @@ class TpcDatabase(testName: String, host: String, format: String = "csv") {
       .format("csv")
       .option("header", "true")
       .option("partitions", "1")
-      .save(s"/benchmark/${testName}-result.csv")
+      .save(s"/benchmark/${testAlias}-result.csv")
     df.show(200, false)
   }
   /** Runs a list of tests and displays the results.
@@ -199,8 +214,8 @@ class TpcDatabase(testName: String, host: String, format: String = "csv") {
  *
  */
 object TpcDatabase {
-  def getNumTests(testName: String): Integer = {
-    if (testName == "tpch") {
+  def getNumTests(testSuite: String): Integer = {
+    if (testSuite == "tpch") {
       22
     } else { // TPCDS 2.4
       104

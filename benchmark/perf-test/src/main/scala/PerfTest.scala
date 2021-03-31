@@ -31,7 +31,9 @@ case class Config(
     verbose: Boolean = false,
     host: String = "hadoop-ndp",
     quiet: Boolean = false,
-    test: String = "tpch",
+    pushdown: Boolean = false,
+    var datasource: String = "",
+    testSuite: String = "tpch",
     format: String = "csv",
     gen: Boolean = false,
     normal: Boolean = false,
@@ -58,21 +60,21 @@ object PerfTest {
       OParser.sequence(
         programName("Spark TPC Benchmark"),
         head("tpch-test", "0.1"),
-        opt[String]('n', "num")
+        opt[String]('t', "test")
           .action((x, c) => c.copy(testNumbers = x))
-          .text("test numbers"),
-        opt[Int]('w', "workers")
-          .action((x, c) => c.copy(workers = x.toInt))
-          .text("workers being used"),
+          .text("test numbers. e.g. 1,2-3,4,5-7"),
         opt[Unit]("gen")
           .action((x, c) => c.copy(gen = true))
           .text("generate the database"),
         opt[String]("format")
           .action((x, c) => c.copy(format = x))
-          .text("Data source format (csv, pushdown)"),
-        opt[String]("test")
-          .action((x, c) => c.copy(test = x))
-          .text("TPC Test (tpch, tpcds)"),
+          .text("Data source format (csv)"),
+        opt[Unit]("pushdown")
+          .action((_, c) => c.copy(pushdown = true))
+          .text("Enable pushdown."),
+        opt[String]('s', "suite")
+          .action((x, c) => c.copy(testSuite = x))
+          .text("TPC Test suite (tpch (default), tpcds)"),
         opt[Unit]("verbose")
           .action((x, c) => c.copy(verbose = true))
           .text("Enable verbose Spark output (TRACE log level )."),
@@ -109,16 +111,20 @@ object PerfTest {
           System.exit(1)
           new Config
     }
-
     if (!config.gen && (config.testList.length == 0)) {
       log.info("\n\nNot enough arguments. Either --gen or -n must be selected.")
       System.exit(1)
+    }
+    if (config.pushdown) {
+      config.datasource = "ndp"
+    } else {
+      config.datasource = "spark"
     }
     config
   }
   def processTestList(config: Config): Unit = {
 
-    val maxTests = TpcDatabase.getNumTests(config.test)
+    val maxTests = TpcDatabase.getNumTests(config.testSuite)
     if (config.testNumbers == "") {
       config.testNumbers = s"1-$maxTests"
     }
@@ -144,22 +150,19 @@ object PerfTest {
   def main(args: Array[String]) {
     val config = parseArgs(args)
 
-    log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")} format: ${config.format}")
+    log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")}" +
+             s" pushdown: ${config.pushdown} datasource: ${config.datasource}" +
+             s" format: ${config.format}")
 
-    val db = new TpcDatabase(config.test, config.host, config.format)
+    val db = new TpcDatabase(config.testSuite, config.host,
+                             config.format, config.pushdown,
+                             config.datasource)
 
     /* Either generate the database or run the test(s)
      */
     if (config.gen) {
       db.genDb
     } else {
-      if (config.gen) {
-        log.info(s"gen: ${config.gen}")
-      } else {
-        log.info(s"tests: ${config.testList}")
-      }
-      log.info(s"test: ${config.test}")
-      log.info(s"format: ${config.format}")
       log.info("***  Starting Test Run ***")
       db.runTests(config.testList.toArray)
       log.info("***  Test Run Completed ***")
