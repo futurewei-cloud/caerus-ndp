@@ -1,7 +1,10 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -11,10 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.github.perf
 
 import scala.collection.mutable.ArrayBuffer
+
+import com.typesafe.config._
 import org.slf4j.LoggerFactory
 import scopt.OParser
 
@@ -26,8 +30,11 @@ case class Config(
     var testList: ArrayBuffer[Integer] = ArrayBuffer.empty[Integer],
     workers: Int = 1,
     verbose: Boolean = false,
+    var host: String = "",
     quiet: Boolean = false,
-    test: String = "tpch",
+    pushdown: Boolean = false,
+    var datasource: String = "",
+    testSuite: String = "tpch",
     format: String = "csv",
     gen: Boolean = false,
     normal: Boolean = false,
@@ -47,28 +54,31 @@ object PerfTest {
    *  @return Config - the configuration object to use.
    */
   def parseArgs(args: Array[String]): Config = {
-    
-    val builder = OParser.builder[Config]
+
     val parser = {
+      val builder = OParser.builder[Config]
       import builder._
       OParser.sequence(
         programName("Spark TPC Benchmark"),
         head("tpch-test", "0.1"),
-        opt[String]('n', "num")
+        opt[String]('t', "test")
           .action((x, c) => c.copy(testNumbers = x))
-          .text("test numbers"),
-        opt[Int]('w', "workers")
-          .action((x, c) => c.copy(workers = x.toInt))
-          .text("workers being used"),
+          .text("test numbers. e.g. 1,2-3,4,5-7"),
         opt[Unit]("gen")
           .action((x, c) => c.copy(gen = true))
           .text("generate the database"),
         opt[String]("format")
           .action((x, c) => c.copy(format = x))
-          .text("Data source format (csv, pushdown)"),
-        opt[String]("test")
-          .action((x, c) => c.copy(test = x))
-          .text("TPC Test (tpch, tpcds)"),
+          .text("Data source format (csv)"),
+        opt[Unit]("pushdown")
+          .action((_, c) => c.copy(pushdown = true))
+          .text("Enable pushdown."),
+        opt[String]("host")
+          .action((x, c) => c.copy(host = x))
+          .text("HDFS hostname"),
+        opt[String]('s', "suite")
+          .action((x, c) => c.copy(testSuite = x))
+          .text("TPC Test suite (tpch (default), tpcds)"),
         opt[Unit]("verbose")
           .action((x, c) => c.copy(verbose = true))
           .text("Enable verbose Spark output (TRACE log level )."),
@@ -78,7 +88,7 @@ object PerfTest {
         opt[Unit]("normal")
           .action((x, c) => c.copy(normal = true))
           .text("Normal log output (INFO log level)."),
-        help("help").text("prints this usage text"),
+        help("help").text("prints this usage text")
       )
     }
     // OParser.parse returns Option[Config]
@@ -95,7 +105,7 @@ object PerfTest {
    * @return Config - The config object to use.
    */
   def validateConfig(optionConfig: Option[Config]): Config = {
-            
+
     val config = optionConfig match {
         case Some(config) =>
           processTestList(config)
@@ -105,30 +115,38 @@ object PerfTest {
           System.exit(1)
           new Config
     }
-
-    if (!config.gen && (config.testList.length == 0)) {      
+    if (!config.gen && (config.testList.length == 0)) {
       log.info("\n\nNot enough arguments. Either --gen or -n must be selected.")
       System.exit(1)
+    }
+    if (config.pushdown) {
+      config.datasource = "ndp"
+    } else {
+      config.datasource = "spark"
+    }
+    if (config.host == "") {
+        // The perf-test.conf file has a few parameters that
+        // contain our defaults.
+        val conf = ConfigFactory.load("perf-test")
+        config.host = conf.getString("perf-test.host")
     }
     config
   }
   def processTestList(config: Config): Unit = {
 
-    val maxTests = TpcDatabase.getNumTests(config.test)
+    val maxTests = TpcDatabase.getNumTests(config.testSuite)
     if (config.testNumbers == "") {
       config.testNumbers = s"1-$maxTests"
     }
     val ranges = config.testNumbers.split(",")
     for (r <- ranges) {
-      if (r.contains("-")) {
-        val numbers = r.split("-")
-        if (numbers.length == 2) {
-          for (i <- numbers(0).toInt to numbers(1).toInt) {
-            config.testList += i
-          }
+      val numbers = r.split("-")
+      if (numbers.length == 1) {
+        config.testList += numbers(0).toInt
+      } else if (numbers.length > 1) {
+        for (i <- numbers(0).toInt to numbers(1).toInt) {
+          config.testList += i
         }
-      } else {
-        config.testList += r.toInt
       }
     }
   }
@@ -141,23 +159,20 @@ object PerfTest {
    */
   def main(args: Array[String]) {
     val config = parseArgs(args)
-    
-    log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")} format: ${config.format}")
 
-    val db = new TpcDatabase(config.test, config.format)
+    log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")}" +
+             s" pushdown: ${config.pushdown} datasource: ${config.datasource}" +
+             s" format: ${config.format} host: ${config.host}")
+
+    val db = new TpcDatabase(config.testSuite, config.host,
+                             config.format, config.pushdown,
+                             config.datasource)
 
     /* Either generate the database or run the test(s)
      */
     if (config.gen) {
       db.genDb
     } else {
-      if (config.gen) {
-        println(s"gen: ${config.gen}")
-      } else {        
-        println(s"tests: ${config.testList}")
-      }
-      println(s"test: ${config.test}")
-      println(s"format: ${config.format}")
       log.info("***  Starting Test Run ***")
       db.runTests(config.testList.toArray)
       log.info("***  Test Run Completed ***")

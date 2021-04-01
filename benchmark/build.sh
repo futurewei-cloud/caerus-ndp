@@ -2,9 +2,11 @@
 set -e
 
 ./build_spark_sql_perf.sh
-./build_perf_test.sh
 
-cd tpch-dbgen/
+pushd perf-test
+./build.sh
+popd
+
+pushd tpch-dbgen/
 make
-
-cd ..
+popd

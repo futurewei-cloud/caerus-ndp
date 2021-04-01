@@ -1,1 +1,4 @@
 volume/*
+build/
+clients/ndp-hdfs/target/
+plugins/projection-plugin/target/

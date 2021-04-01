@@ -1,12 +1,19 @@
 #!/bin/bash
 
-cd datasource
+pushd datasource
 ./clean.sh
+popd
 
-cd ../benchmark
+pushd benchmark
 ./clean.sh
+popd
 
-cd ../spark
+pushd spark
 ./clean.sh
+popd
+
+pushd hadoop
+./clean.sh
+popd
 
 echo "Clean Done"

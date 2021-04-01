@@ -1,7 +1,10 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -11,51 +14,56 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.github.perf
 
-import org.apache.hadoop.fs.FileSystem
-import org.apache.spark.sql.{DataFrame, Row, SparkSession, SQLContext}
-import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types._
 import com.databricks.spark.sql.perf.Benchmark
 import com.databricks.spark.sql.perf.ExecutionMode
 import com.databricks.spark.sql.perf.tpcds.{TPCDS, TPCDSTables}
 import com.databricks.spark.sql.perf.tpch.TPCHTables
-
+import org.apache.hadoop.fs.FileSystem
 import org.slf4j.LoggerFactory
 
+import org.apache.spark.sql.{DataFrame, Row, SparkSession, SQLContext}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+
 /** A TPC-H or TPC-DS database object.  Supports either generating the
- *  database, or runnint tests on it.
+ *  database, or running tests on it.
  *
- * @param testName - Kind of test to run, either "tpch" or "tpcds"
+ * @param testSuite - Kind of test to run, either "tpch" or "tpcds"
  * @param format - either "csv" or "pushdown" - To use our own csv data source with pushdown.
  */
-class TpcDatabase(testName: String, format: String = "csv") {
-  
+class TpcDatabase(testSuite: String, host: String, format: String = "csv",
+                  pushdown: Boolean = false, datasource: String = "spark") {
+
   private val log = LoggerFactory.getLogger(getClass)
   val spark = SparkSession.builder()
       .master("local[1]")
       .appName("gen-db")
       .getOrCreate();
   import spark.implicits._
-  
+
   val sqlContext = new org.apache.spark.sql.SQLContext(spark.sparkContext)
-  
+  val genDir = {
+    s"${testSuite}-${format}"
+  }
+  val testAlias = {
+    s"${testSuite}-${datasource}-${format}-${if (pushdown) { "pushdown" } else "nopush"}"
+  }
+  val resultsDir = "/benchmark/results"
   val rootDir = {
-    if (format == "csv" || format == "parquet") {
-      s"hdfs://dikehdfs:9000/${testName}-${format}" // root directory for generation
-      //s"/benchmark/build/tpch-data/${testName}"   // local filesystem directory.
+    if (datasource == "spark") {
+      s"hdfs://${host}:9000/${genDir}"
     } else {
-      s"ndphdfs://dikehdfs/${testName}-csv" // root directory for ndp.
+      s"ndphdfs://${host}/${genDir}"
     }
   }
 
-  val statsType = if (format == "csv") "hdfs" else "ndphdfs"
-  val databaseName = s"${testName}"  // name of database to create.
+  val statsType = if (datasource == "ndp") "ndphdfs" else "hdfs"
+  val databaseName = s"${testSuite}"  // name of database to create.
   val scaleFactor = "1" // scaleFactor defines the size of the dataset to generate (in GB).
   val tables = {
-    if (testName == "tpch") {
+    if (testSuite == "tpch") {
       new TPCHTables(sqlContext,
       dbgenDir = "/benchmark/tpch-dbgen", // location of dbgen
       scaleFactor = scaleFactor,
@@ -77,19 +85,19 @@ class TpcDatabase(testName: String, format: String = "csv") {
    */
   def genDb(): Unit = {
     // Run:
-    log.info(s"Starting genData for ${testName}")
+    log.info(s"Starting genData for ${testSuite}")
     tables.genData(
         location = rootDir,
         format = format,
         overwrite = true, // overwrite the data that is already there
-        partitionTables = false, // create the partitioned fact tables 
-        clusterByPartitionColumns = true, // shuffle to get partitions coalesced into single files. 
-        filterOutNullPartitionValues = false, // true to filter out the partition with NULL key value
+        partitionTables = false, // create the partitioned fact tables
+        clusterByPartitionColumns = true, // shuffle to get partitions coalesced into single files.
+        filterOutNullPartitionValues = false, // true to filter the partition with NULL key value
         tableFilter = "", // "" means generate all tables
         numPartitions = 1) // how many dsdgen partitions to run - number of input tasks.
-    
+
     log.info("genData complete")
-    
+
     // Create the specified database
     spark.sql(s"create database $databaseName")
   }
@@ -102,7 +110,13 @@ class TpcDatabase(testName: String, format: String = "csv") {
     var stats = FileSystem.getStatistics
     if (stats.containsKey(statsType)) stats.get(statsType).getBytesRead else 0
   }
-  
+  private val dataSourceString = {
+    if (datasource == "ndp") {
+      "pushdown"
+    } else {
+      format
+    }
+  }
   /** Runs a test and returns the DataFrame with the results.
    *
    *  @param test - the number of the test to run
@@ -110,33 +124,32 @@ class TpcDatabase(testName: String, format: String = "csv") {
    *  @return DataFrame - The test results including runtime, status, and bytes transferred.
    */
   def runTest(test: Int) : DataFrame = {
-    val resultLocation = s"/benchmark/${testName}-results-db" // place to write results
+    val resultLocation = s"${resultsDir}/${testSuite}-results-db" // place to write results
     val iterations = 1 // how many iterations of queries to run.
     val timeout = 24*60*60 // timeout, in seconds.
 
     spark.sql(s"drop database if exists $databaseName cascade")
     spark.sql(s"create database $databaseName")
     spark.sql(s"use $databaseName")
-    tables.createTemporaryTables(rootDir, format)
-    //spark.sql(s"DESCRIBE DATABASE EXTENDED $databaseName").show()
-    //spark.sql(s"SHOW TABLES FROM $databaseName").show()
-    //spark.sql(s"SHOW TABLE EXTENDED FROM $databaseName LIKE '*'").show(900, false)
+
+    log.info(s"ds: ${dataSourceString} rootDir: {$rootDir}")
+    tables.createTemporaryTables(rootDir, dataSourceString)
     val startBytes = getReadBytes
     val experimentStatus: Benchmark.ExperimentStatus = {
-      if (testName == "tpch") {
+      if (testSuite == "tpch") {
         val tpch = new TPCHWritable(sqlContext = sqlContext,
-                            ExecutionMode.WriteParquet(s"/benchmark/test-output/${testName}-${format}"))
-        val queries = tpch.queries.slice(test - 1,test)
+          ExecutionMode.WriteParquet(s"${resultsDir}/test-output/${testAlias}"))
+        val queries = tpch.queries.slice(test - 1, test)
         tpch.runExperiment(
-            queries, 
+            queries,
             iterations = iterations,
             resultLocation = resultLocation,
-            forkThread = true)                          
+            forkThread = true)
       } else {
         val tpcds = new TPCDS(sqlContext = sqlContext)
-        val queries = tpcds.tpcds2_4Queries.slice(test - 1,test)
+        val queries = tpcds.tpcds2_4Queries.slice(test - 1, test)
         tpcds.runExperiment(
-            queries, 
+            queries,
             iterations = iterations,
             resultLocation = resultLocation,
             forkThread = true)
@@ -144,18 +157,18 @@ class TpcDatabase(testName: String, format: String = "csv") {
     }
     experimentStatus.waitForFinish(timeout)
     val totalBytes = getReadBytes - startBytes
-    val resDf = experimentStatus.getCurrentResults 
+    val resDf = experimentStatus.getCurrentResults
                 .withColumn("name", substring(col("name"), 2, 100))
-                .withColumn("runtime", (col("parsingTime") + col("analysisTime") + 
-                            col("optimizationTime") + col("planningTime") + col("executionTime")) / 1000.0)
+                .withColumn("runtime", (col("parsingTime") + col("analysisTime") +
+                            col("optimizationTime") + col("planningTime") +
+                            col("executionTime")) / 1000.0)
                 .select("name", "result", "failure", "runtime")
     val row = resDf.first
     val rowMap = row.getValuesMap[Any](row.schema.fieldNames)
     val name = rowMap("name").toString
     val df = experimentStatus.getCurrentResults
-    val bytesDf = Seq((name, totalBytes)).toSeq.toDF("test","bytes")
+    val bytesDf = Seq((name, totalBytes)).toSeq.toDF("test", "bytes")
     val fullResDf = resDf.join(bytesDf, resDf("name") === bytesDf("test"), "inner").drop("test")
-    //println(fullResDf.schema)
     fullResDf
   }
   def showResult(df: DataFrame): Unit = {
@@ -164,7 +177,7 @@ class TpcDatabase(testName: String, format: String = "csv") {
       .format("csv")
       .option("header", "true")
       .option("partitions", "1")
-      .save(s"/benchmark/${testName}-result.csv")
+      .save(s"${resultsDir}/${testAlias}-result.csv")
     df.show(200, false)
   }
   /** Runs a list of tests and displays the results.
@@ -176,11 +189,13 @@ class TpcDatabase(testName: String, format: String = "csv") {
    *  @return Unit
    */
   def runTests(testList: Array[Integer]) : Unit = {
-    val schema = StructType(StructField("name",StringType,true) :: StructField("result",LongType,true) 
-                          ::StructField("failure",StructType(StructField("className",StringType,true)
-                                                           ::StructField("message",StringType,true) :: Nil),true)
-                          ::StructField("runtime",DoubleType,true)
-                          ::StructField("bytes",LongType,false) :: Nil )
+    val schema = StructType(StructField("name", StringType, true) ::
+                            StructField("result", LongType, true) ::
+                            StructField("failure", StructType(
+                             StructField("className", StringType, true) ::
+                             StructField("message", StringType, true) :: Nil), true) ::
+                            StructField("runtime", DoubleType, true) ::
+                            StructField("bytes", LongType, false) :: Nil )
     var resultDF = spark.createDataFrame(spark.sparkContext.emptyRDD[Row], schema)
     var index = 0
     for (i <- testList) {
@@ -199,8 +214,8 @@ class TpcDatabase(testName: String, format: String = "csv") {
  *
  */
 object TpcDatabase {
-  def getNumTests(testName: String): Integer = {
-    if (testName == "tpch") {
+  def getNumTests(testSuite: String): Integer = {
+    if (testSuite == "tpch") {
       22
     } else { // TPCDS 2.4
       104

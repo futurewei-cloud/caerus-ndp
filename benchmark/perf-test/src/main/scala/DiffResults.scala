@@ -1,7 +1,10 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -11,23 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.github.perf
 
 import scala.collection.mutable.ArrayBuffer
+
+import com.databricks.spark.sql.perf.Benchmark
+import com.databricks.spark.sql.perf.tpcds.TPCDS
+import com.databricks.spark.sql.perf.tpcds.TPCDSTables
+import com.databricks.spark.sql.perf.tpch.TPCH
+import com.databricks.spark.sql.perf.tpch.TPCHTables
 import org.apache.hadoop.fs.FileSystem
+import org.slf4j.LoggerFactory
+import scopt.OParser
+
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import com.databricks.spark.sql.perf.Benchmark
-import com.databricks.spark.sql.perf.tpcds.TPCDSTables
-import com.databricks.spark.sql.perf.tpcds.TPCDS
-import com.databricks.spark.sql.perf.tpch.TPCHTables
-import com.databricks.spark.sql.perf.tpch.TPCH
-import com.databricks.spark.sql.perf._
-
-import org.slf4j.LoggerFactory
-import scopt.OParser
 
 /** The configuration for the Diff app, which is obtained through either
  *  defaults or through command line parameters.
@@ -36,7 +38,7 @@ case class DiffConfig(
     var testNumbers: String = "",
     baselinePath: String = "",
     resultsPath: String = "",
-    format: String = "csv",
+    format: String = "parquet",
     test: String = "tpch",
     var testList: ArrayBuffer[Integer] = ArrayBuffer.empty[Integer],
     verbose: Boolean = false,
@@ -59,9 +61,8 @@ object DiffResults {
    *  @return DiffConfig - the configuration object to use.
    */
   def parseArgs(args: Array[String]): DiffConfig = {
-    
-    val builder = OParser.builder[DiffConfig]
     val parser = {
+      val builder = OParser.builder[DiffConfig]
       import builder._
       OParser.sequence(
         programName("Diff TPC Benchmark Results"),
@@ -87,7 +88,7 @@ object DiffResults {
         opt[Unit]("normal")
           .action((x, c) => c.copy(normal = true))
           .text("Normal Spark output (INFO log level)."),
-        help("help").text("prints this usage text"),
+        help("help").text("prints this usage text")
       )
     }
     // OParser.parse returns Option[DiffConfig]
@@ -104,7 +105,6 @@ object DiffResults {
    * @return DiffConfig - The config object to use.
    */
   def validateConfig(optionConfig: Option[DiffConfig]): DiffConfig = {
-            
     val config = optionConfig match {
         case Some(config) =>
           if (config.testNumbers == "") {
@@ -112,15 +112,13 @@ object DiffResults {
           }
           val ranges = config.testNumbers.split(",")
           for (r <- ranges) {
-            if (r.contains("-")) {
-              val numbers = r.split("-")
-              if (numbers.length == 2) {
-                for (i <- numbers(0).toInt to numbers(1).toInt) {
-                  config.testList += i
-                }
+            val numbers = r.split("-")
+            if (numbers.length == 1) {
+              config.testList += numbers(0).toInt
+            } else if (numbers.length > 1) {
+              for (i <- numbers(0).toInt to numbers(1).toInt) {
+                config.testList += i
               }
-            } else {
-              config.testList += r.toInt
             }
           }
           config
@@ -128,7 +126,7 @@ object DiffResults {
           // arguments are bad, error message will have been displayed
           System.exit(1)
           new DiffConfig
-    }    
+    }
     config
   }
   var successCount = 0
@@ -139,7 +137,7 @@ object DiffResults {
                           .appName("diffResults")
                           .getOrCreate()
 
-  /** Returns the test directory, comprised of 
+  /** Returns the test directory, comprised of
    *  the base directory, test name and the config.
    * @param config - test configuration
    * @param test - integer index of the test
@@ -178,7 +176,7 @@ object DiffResults {
    * @return Unit
    */
   def sparkDiff(config: DiffConfig, basePath: String, comparePath: String): Unit = {
-    
+
     val baseDf = spark.read.format(config.format).load(basePath)
     val compareDf = spark.read.format(config.format).load(comparePath)
 
@@ -192,7 +190,7 @@ object DiffResults {
       log.warn(s"${basePath} and ${comparePath} are the same.")
       successCount += 1
     }
-  }    
+  }
 
   /** Sets the loglevel based upon the parameters in the config.
    *
@@ -207,16 +205,18 @@ object DiffResults {
     } else if (config.normal) {
       spark.sparkContext.setLogLevel("INFO")
     }
-  }  
+  }
 
   /** Shows the summary of comparison results
    *
    * @return Unit
    */
   def showResults(): Unit = {
+    // scalastyle:off
     println(s"success: ${successCount}")
     println(s"failure: ${failureCount}")
     println(s"skipped: ${skippedCount}")
+    // scalastyle:off
   }
 
   /** The main entry point for this diff.

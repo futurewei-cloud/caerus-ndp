@@ -6,3 +6,9 @@ project/build.properties
 project/project/*
 project/target/*
 target/*
+datasource/lib/
+datasource/project/build.properties
+datasource/project/project/
+datasource/project/target/
+datasource/target
+examples/target

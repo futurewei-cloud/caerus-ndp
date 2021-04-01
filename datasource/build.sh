@@ -2,19 +2,19 @@
 set -e
 
 ROOT_DIR=../datasource
-if [ ! -d    $ROOT_DIR/lib ]; then
-  mkdir $ROOT_DIR/lib
+if [ ! -d    $ROOT_DIR/datasource/lib ]; then
+  mkdir -p $ROOT_DIR/datasource/lib
 fi
 if [ ! -d build ]; then
   mkdir build
 fi
-#DIKECLIENTJAR=../dikeHDFS/client/ndp-hdfs/target/ndp-hdfs-1.0.jar
-#if [ ! -f $DIKECLIENTJAR ]; then
-#  echo "Please build dikeHDFS client ($DIKECLIENTJAR) before building spark examples"
-#  exit 1
-#fi
-#cp $DIKECLIENTJAR $ROOT_DIR/lib
-if [ ! -f $ROOT_DIR/lib/ndp-hdfs-1.0.jar ]; then
+NDPCLIENTJAR=../hadoop/clients/ndp-hdfs/target/ndp-hdfs-1.0.jar
+if [ ! -f $NDPCLIENTJAR ]; then
+  echo "Please build dikeHDFS client ($NDPCLIENTJAR) before building spark examples"
+  exit 1
+fi
+cp $NDPCLIENTJAR $ROOT_DIR/datasource/lib
+if [ ! -f $ROOT_DIR/datasource/lib/ndp-hdfs-1.0.jar ]; then
   echo "Please copy dikeHDFS client to datasource/lib before building datasource"
   echo "For example: cp dikeHDFS/client/ndp-hdfs/target/ndp-hdfs-1.0.jar datasource/lib"
   exit 1
@@ -22,7 +22,7 @@ fi
 # Bring in environment including ${ROOT_DIR} etc.
 source ../spark/docker/setup.sh
 if [ "$#" -gt 0 ]; then
-  if [ "$1" == "debug" ]; then
+  if [ "$1" == "-d" ]; then
     docker run --rm -it --name ndp_pushdown_build_debug \
       --network dike-net \
       --mount type=bind,source="$(pwd)"/../datasource,target=/datasource  \
