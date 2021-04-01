@@ -2,8 +2,8 @@
 set -e
 
 ROOT_DIR=../datasource
-if [ ! -d    $ROOT_DIR/lib ]; then
-  mkdir $ROOT_DIR/lib
+if [ ! -d    $ROOT_DIR/datasource/lib ]; then
+  mkdir -p $ROOT_DIR/datasource/lib
 fi
 if [ ! -d build ]; then
   mkdir build
@@ -13,8 +13,8 @@ if [ ! -f $NDPCLIENTJAR ]; then
   echo "Please build dikeHDFS client ($NDPCLIENTJAR) before building spark examples"
   exit 1
 fi
-cp $NDPCLIENTJAR $ROOT_DIR/lib
-if [ ! -f $ROOT_DIR/lib/ndp-hdfs-1.0.jar ]; then
+cp $NDPCLIENTJAR $ROOT_DIR/datasource/lib
+if [ ! -f $ROOT_DIR/datasource/lib/ndp-hdfs-1.0.jar ]; then
   echo "Please copy dikeHDFS client to datasource/lib before building datasource"
   echo "For example: cp dikeHDFS/client/ndp-hdfs/target/ndp-hdfs-1.0.jar datasource/lib"
   exit 1
