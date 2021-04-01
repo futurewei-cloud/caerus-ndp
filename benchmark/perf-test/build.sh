@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
-ROOT_DIR=./perf-test
+ROOT_DIR=.
 if [ ! -d ${ROOT_DIR}/lib ]; then
   mkdir ${ROOT_DIR}/lib
 fi
 
-SPARK_SQL_JAR=./spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar
+SPARK_SQL_JAR=../spark-sql-perf/target/scala-2.12/spark-sql-perf_2.12-0.5.1-SNAPSHOT.jar
 if [ ! -f $SPARK_SQL_JAR ]; then
   echo "Please build spark-sql-perf ($SPARK_SQL_JAR) before building scripts"
   exit 1
