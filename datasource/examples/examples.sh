@@ -1,10 +1,5 @@
 #!/bin/bash
 TEST=DatasourceExample
-if [ "$#" -lt 1 ]; then
-  echo "Usage: --debug --workers # <args for test or --help>"
-  exit 1
-fi
-
 DEBUG=NO
 WORKERS=1
 POSITIONAL=()
@@ -21,6 +16,10 @@ case $key in
     -d|--debug)
     DEBUG=YES
     shift # past argument
+    ;;
+    -h|--help)
+    printf "\nUsage: [--debug] [--workers <workers>] <args for test>\n\n"
+    exit 0
     ;;
     *)    # unknown option
     POSITIONAL+=("$1") # save it in an array for later

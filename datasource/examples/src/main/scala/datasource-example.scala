@@ -78,7 +78,7 @@ object DatasourceExample {
     }
 
     ndpDF.show()
-    ndpDF.select("j", "k", "i").show()
+    ndpDF.select("j", "i").show()
     ndpDF.select("k").show()
   }
 
