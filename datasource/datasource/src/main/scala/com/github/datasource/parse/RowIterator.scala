@@ -115,6 +115,10 @@ class RowIterator(rowReader: BufferedReader,
       }
     } else {
       val values = line.split(delim.fieldDelim)
+      // scalastyle:off
+      println(s"line: ${line}")
+      println(s"values: ${values}")
+      println(s"schema: ${schema.mkString(",")}")
       if (values.length > 0 && values(0) != "") {
         for (value <- values) {
           val field = schema.fields(index)
@@ -124,6 +128,7 @@ class RowIterator(rowReader: BufferedReader,
         }
       }
     }
+    // scalastyle:on
     if (index >= schema.fields.length) {
       rows += 1
       new GenericInternalRow(row)

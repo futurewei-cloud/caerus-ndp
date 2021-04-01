@@ -175,6 +175,8 @@ class HdfsStore(schema: StructType,
         val projectColumns = prunedSchema.fields.map(x => {
             getSchemaIndex(schema, x.name)
         }).mkString(",")
+        logger.info(s"Pushdown project: ${projectColumns} to " +
+                    s"${fileSystemType} partition: ${partition.toString}")
         new ProcessorRequest(schema.fields.size.toString, projectColumns, partition.length).toXml
       }
     }
