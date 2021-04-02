@@ -38,8 +38,7 @@ class TpcDatabase(testSuite: String, host: String, format: String = "csv",
 
   private val log = LoggerFactory.getLogger(getClass)
   val spark = SparkSession.builder()
-      .master("local[1]")
-      .appName("gen-db")
+      .appName("tpc-db")
       .getOrCreate();
   import spark.implicits._
 
