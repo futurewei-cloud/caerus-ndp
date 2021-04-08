@@ -103,11 +103,23 @@ public class NdpHdfsTest
     @DisplayName("Simple NdpHdfs test")
     public void testNdpHdfs()
     {
-        int[] projection = new int [] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+        traceEnabled = false;
+        int[] projection = null;
+        projection = new int [] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
         test("NdpHdfs Sorted", projection);
         projection = new int [] {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
         test("NdpHdfs Random", projection);
-        test("NdpHdfs NoPushdown", null);
+        projection = new int [] {0, 1, 3, 5};
+        test("NdpHdfs 0 1 3 5", projection);
+        projection = new int [] {0, 1, 5, 3};
+        test("NdpHdfs 0 1 5 3", projection);
+
+        projection = new int [] {0, 1, 3, 15};
+        test("NdpHdfs 0 1 3 15", projection);
+        projection = new int [] {0, 1, 15, 3};
+        test("NdpHdfs 0 1 15 3", projection);
+
+        //test("NdpHdfs NoPushdown", null);
     }
 
     public void test(String name, int projection[])

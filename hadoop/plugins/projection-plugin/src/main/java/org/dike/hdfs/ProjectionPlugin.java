@@ -163,6 +163,7 @@ final class ProjectionPlugin
 
     private boolean [] projectMask;
     public boolean isSorted;
+    private int lastColumn;
     private byte[] leftOver = null;
     private long totalBytes;
     private long carryoverBytes;
@@ -184,7 +185,7 @@ final class ProjectionPlugin
       }
 
       isSorted = true;
-      int lastColumn = -1;
+      int col = -1;
       for (int p : project){
         if (p > columns){
             throw new IllegalArgumentException(String.format("Invalid column [%d] ", p));
@@ -194,12 +195,13 @@ final class ProjectionPlugin
         } else {
             projectMask[p] = true;
         }
-        if (p <= lastColumn) {
+        if (p <= col) {
           isSorted = false;
         }
-        lastColumn = p;
+        col = p;
       }
 
+      lastColumn = col;
       totalBytes = 0;
       carryoverBytes = 0;
       currentColumn = 0;
@@ -503,10 +505,14 @@ final class ProjectionPlugin
         }
         if ((b == recordDelim || b == fieldDelim) && !underQuote ) {
           if (do_project) {
-            outBytes[outIndex++] = (byte)fieldDelim;            
+            if (col != lastColumn){
+              outBytes[outIndex++] = (byte)fieldDelim;
+            } else {
+              outBytes[outIndex++] = (byte)recordDelim;
+            }
           }
-          if(++col == columns){ // End of record
-            outBytes[outIndex - 1] = (byte)recordDelim;            
+          if(++col == columns){ // End of record            
+            //outBytes[outIndex - 1] = (byte)recordDelim;                          
             totalBytes += index - lastRow;
             lastRow = index;
             col = 0;
