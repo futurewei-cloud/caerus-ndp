@@ -76,19 +76,40 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 
+import java.lang.reflect.Field;
+import sun.misc.Unsafe;
+
 @Sharable
 final class ProjectionPlugin 
     extends MessageToMessageCodec<Object, Object> {
 
-  static final Logger REQLOG = LoggerFactory.getLogger("datanode.webhdfs.ProjectionPlugin");
-  private Configuration conf;  
+  static final Logger REQLOG = LoggerFactory.getLogger("datanode.webhdfs");
+  private Configuration conf;
+  private Unsafe UnSafe;
 
   ProjectionPlugin(Configuration conf) {    
-    this.conf = conf;    
+    this.conf = conf;
+    try {
+      this.UnSafe = getUnsafe();
+    } catch ( Exception e ) {
+      REQLOG.error("ProjectionPlugin : UnSafe initialization failed");
+      this.UnSafe = null;
+    }
+  }
+
+  private Unsafe getUnsafe() throws SecurityException,
+          NoSuchFieldException, IllegalArgumentException,
+          IllegalAccessException
+  {
+      Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
+      theUnsafe.setAccessible(true);
+      Unsafe unsafe = (Unsafe) theUnsafe.get(null);
+      return unsafe;
   }
 
   @Override
   protected void decode(ChannelHandlerContext ctx, Object msg, List<Object> out) throws Exception {
+    //System.out.println("ProjectionPlugin::decode " + msg.getClass().getName());
     if (msg instanceof HttpRequest) {
       HttpRequest req = (HttpRequest)msg;      
       String ndpConfig = req.headers().get("NdpConfig");      
@@ -97,12 +118,16 @@ final class ProjectionPlugin
         return;
       }
 
+      //System.out.println("ProjectionPlugin::decode ctx: " + ctx + " channel: " + ctx.channel());      
+      //System.out.println(req.uri());
       //REQLOG.info("ProjectionPlugin : " + req.getUri());
 
       long offset = 0L;
+      //System.out.println("ProjectionPlugin::decode ndpConfig " + ndpConfig);
       List<NameValuePair> params = URLEncodedUtils.parse(new URI(req.uri()), "UTF-8");
       for (NameValuePair param : params) {
         if (param.getName().equals("offset")) {
+          //System.out.println(param.getName() + " : " + param.getValue());
           offset = Long.parseLong(param.getValue());
         }
       }
@@ -111,6 +136,7 @@ final class ProjectionPlugin
         ctx.channel().attr(AttributeKey.valueOf("NdpParser")).set(parser);
         ctx.channel().attr(AttributeKey.valueOf("FlushInProgress")).set(false);
       } catch ( Exception e ) {
+        //System.out.println("Invalid parser NdpConfig");
         DefaultHttpResponse resp = new DefaultHttpResponse(HTTP_1_1, BAD_REQUEST);
         resp.headers().set(CONNECTION, CLOSE);
         ctx.writeAndFlush(resp).addListener(ChannelFutureListener.CLOSE);
@@ -125,24 +151,21 @@ final class ProjectionPlugin
     Parser parser = (Parser) ctx.channel().attr(AttributeKey.valueOf("NdpParser")).get();
 
     if (msg instanceof ByteBuf && parser != null) {      
-      if (parser.is_done()) {        
+      if (parser.is_done()) {
+        //ChannelFuture future = ctx.channel().close();        
         Boolean flushInProgress = (Boolean) ctx.channel().attr(AttributeKey.valueOf("FlushInProgress")).get();
-        if(!flushInProgress){          
+        if(!flushInProgress){
+          //System.out.println("ProjectionPlugin::encode flushInProgress");
           ctx.channel().attr(AttributeKey.valueOf("FlushInProgress")).set(true);
           ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
         }        
-        out.add(Unpooled.EMPTY_BUFFER);        
+        out.add(Unpooled.EMPTY_BUFFER);
         return;
       }
 
-      ByteBuf outByteBuf = null;
-      if (parser.isSorted) {
-        outByteBuf = parser.parseSorted((ByteBuf)msg);
-      } else {
-        //outByteBuf = parser.parse((ByteBuf)msg);
-        outByteBuf = parser.parseRandom((ByteBuf)msg);
-      }
-
+      //ByteBuf outByteBuf = parser.parse((ByteBuf)msg);      
+      //ByteBuf outByteBuf = parser.parse((ByteBuf)msg, UnSafe);      
+      ByteBuf outByteBuf = parser.parseOrdered((ByteBuf)msg);
       out.add(outByteBuf);
       return;
     }
@@ -162,15 +185,16 @@ final class ProjectionPlugin
     private long offset;
 
     private boolean [] projectMask;
-    public boolean isSorted;
+    private int byteCount = 0;
     private byte[] leftOver = null;
     private long totalBytes;
     private long carryoverBytes;
     private int currentColumn = 0;
     private boolean currentUnderQuote;
     private byte[] outBytes = null;
-    private byte[] inBytes = null;    
-    
+    private byte[] inBytes = null;
+    public int rowCount = 0;
+
     private final int MAX_RECORDS = 1024;
     private int[] beginIndex = null;
     private int[] endIndex = null;
@@ -183,8 +207,6 @@ final class ProjectionPlugin
           projectMask[i] = false;
       }
 
-      isSorted = true;
-      int lastColumn = -1;
       for (int p : project){
         if (p > columns){
             throw new IllegalArgumentException(String.format("Invalid column [%d] ", p));
@@ -194,10 +216,6 @@ final class ProjectionPlugin
         } else {
             projectMask[p] = true;
         }
-        if (p <= lastColumn) {
-          isSorted = false;
-        }
-        lastColumn = p;
       }
 
       totalBytes = 0;
@@ -227,9 +245,11 @@ final class ProjectionPlugin
             Element configurationElement = (Element)dom.getElementsByTagName("Configuration").item(0);
             
             Element columnsElement = (Element)configurationElement.getElementsByTagName("Columns").item(0);
+            //System.out.println(columnsElement.getTextContent());
             this.columns = Integer.parseInt(columnsElement.getTextContent());
 
-            Element projectElement = (Element)configurationElement.getElementsByTagName("Project").item(0);            
+            Element projectElement = (Element)configurationElement.getElementsByTagName("Project").item(0);
+            //System.out.println(projectElement.getTextContent());
             String[] cols = projectElement.getTextContent().split(",");
             this.project = new int[cols.length];
             for (int i = 0; i < cols.length; i++) {
@@ -237,71 +257,16 @@ final class ProjectionPlugin
             }
 
             Element skipHeaderElement = (Element)configurationElement.getElementsByTagName("SkipHeader").item(0);
+            //System.out.println(skipHeaderElement.getTextContent());
             this.skipHeader = Boolean.parseBoolean(skipHeaderElement.getTextContent()); 
 
             Element blockSizeElement = (Element)configurationElement.getElementsByTagName("BlockSize").item(0);
+            //System.out.println(blockSizeElement.getTextContent());
             this.blockSize = Long.parseLong(blockSizeElement.getTextContent());            
         } catch ( Exception e ) {
             throw new IllegalArgumentException(String.format("Invalid XML format "));
         }
         init();
-    }
-
-    /* Return last out_index */
-    private int writeRecords(byte[] inBytes, int index, int bufferBytes, byte[] outBytes) {      
-      boolean underQuote = false;
-      int col = 0;
-      int lastRow = index;
-      int out_index = 0;      
-
-      beginIndex[col] = index;
-      while (index < bufferBytes) {        
-        byte b = inBytes[index++];
-        if (b == quoteDelim){
-            underQuote = !underQuote;
-        }
-        if ((b == recordDelim || b == fieldDelim) && !underQuote ) {            
-            endIndex[col] = index - 1;                
-            if(++col == columns){ // End of record
-              out_index = writeColumns(1, inBytes, outBytes, out_index);
-              col = 0;                  
-              totalBytes += index - lastRow;
-              lastRow = index;
-              if (blockSize > 0 && totalBytes > blockSize){ // is_done()
-                return out_index;
-              }
-            }
-            beginIndex[col] = index;            
-        }
-      }
-
-      if (!is_done()) { // This check may be redundant
-        // Preserve remaining data
-        leftOver = Arrays.copyOfRange(inBytes, lastRow, bufferBytes);
-      }      
-      
-      return out_index;
-    }
-
-    private int writeColumns(int recordCount, byte[] inBytes, byte[] outBytes, int out_index) {
-      for(int fieldIndex = 0; fieldIndex < recordCount * columns; fieldIndex += columns) {
-        for (int c : project ) {
-          int col = c + fieldIndex;
-          int length = endIndex[col] - beginIndex[col];
-          System.arraycopy(inBytes, beginIndex[col], outBytes, out_index, length);
-          out_index += length;
-          outBytes[out_index++] = (byte) fieldDelim;
-        }
-        outBytes[out_index - 1] = (byte)recordDelim;
-      }
-      return out_index;
-    }
-
-    public boolean is_done() {
-      if (blockSize > 0 && totalBytes > blockSize){
-        return true;
-      }
-      return false;
     }
 
     /* Return number of of fully processed records */
@@ -310,7 +275,7 @@ final class ProjectionPlugin
       int recordCount = 0;
       int fieldCount = 0;
       int col = 0;
-      int lastRow = index;
+      int row_index = index;
 
       if (blockSize > 0 && totalBytes > blockSize){
         return 0;
@@ -328,8 +293,8 @@ final class ProjectionPlugin
                 fieldCount++;
                 if(++col == columns){ // End of record
                   col = 0;
-                  totalBytes += i+1 - lastRow;
-                  lastRow = i+1;
+                  totalBytes += i+1 - row_index;
+                  row_index = i+1;
                   if (++recordCount >= MAX_RECORDS){
                     break;
                   }
@@ -344,71 +309,73 @@ final class ProjectionPlugin
       return recordCount;
     }
 
-    public ByteBuf parseRandom(ByteBuf inByteBuf) {      
-      int readableBytes = inByteBuf.readableBytes();
-      int leftOverBytes = 0;      
-      
-      if (leftOver != null){
-          leftOverBytes = leftOver.length;
-      }
-      int bufferBytes = readableBytes + leftOverBytes;
-      
-      if (outBytes == null || inBytes == null){
-        outBytes = new byte[bufferBytes + 128];
-        inBytes = new byte[bufferBytes + 128];
-      }
-      if (outBytes.length < bufferBytes || inBytes.length < bufferBytes) {
-        outBytes = new byte[bufferBytes + 128];
-        inBytes = new byte[bufferBytes + 128];
-      }
+    /* Return last out_index and row_index */
+    private int[] parseRecords(byte[] inBytes, int index, int bufferBytes, byte[] outBytes) {
+      int[] ret = new int[2];
+      boolean underQuote = false;
+      int col = 0;
+      int row_index = index;
+      int out_index = 0;      
 
-      if (leftOverBytes > 0) {    
-        System.arraycopy(leftOver, 0, inBytes, 0, leftOverBytes);        
-      }      
-      
-      inByteBuf.getBytes(inByteBuf.readerIndex(), inBytes, leftOverBytes, readableBytes);      
-
-      leftOver = null;
-
-      int index, nextIndex, col, lastRow, outIndex;
-      index = nextIndex = col = lastRow = outIndex = 0;
-
-      if (seekRow || skipHeader) {
-        seekRow = false;
-        skipHeader = false;                
-        while(index < bufferBytes){
-          byte b = inBytes[index++];
-          if(b == (byte)recordDelim) {
-            break;
-          }
+      beginIndex[col] = index;
+      for (int i = index; i < bufferBytes; i ++) {        
+        byte b = inBytes[i];
+        if (b == quoteDelim){
+            underQuote = !underQuote;
         }
+        if ((b == recordDelim || b == fieldDelim) && !underQuote ) {            
+            endIndex[col] = i;                
+            if(++col == columns){ // End of record
+              // Writing out projection
+              for (int c : project ) {
+                int length = endIndex[c] - beginIndex[c];
+                System.arraycopy(inBytes, beginIndex[c], outBytes, out_index, length);
+                out_index += length;
+                outBytes[out_index++] = (byte) fieldDelim;
+              }
+              outBytes[out_index - 1] = (byte)recordDelim;
+              // End of writing
 
-        totalBytes += index - lastRow;
-        lastRow = index;
-      }
-      
-      // Main parsing loop     
-      while (index < bufferBytes){
-        int recordCount = parseRecords(inBytes, index, bufferBytes);
-        if (recordCount <= 0){
-          break;
+              col = 0;                  
+              totalBytes += i+1 - row_index;
+              row_index = i+1;
+              if (blockSize > 0 && totalBytes > blockSize){
+                ret[0] = out_index;
+                ret[1] = -1;
+                return ret;
+              }
+            }
+            beginIndex[col] = i + 1;            
         }
-        outIndex = writeColumns(recordCount, inBytes, outBytes, outIndex);        
-        index = endIndex[recordCount * columns - 1] + 1;
-        lastRow = index;
-        if (recordCount < MAX_RECORDS) { // End of data
-          break;
-        }          
-      }
-      
-      if (!is_done()){
-        // Preserve remaining data
-        leftOver = Arrays.copyOfRange(inBytes, lastRow, bufferBytes);
       }
 
-      ByteBuf outByteBuf = Unpooled.wrappedBuffer(outBytes, 0, outIndex);
-      outByteBuf.retain();
-      return outByteBuf;
+      ret[0] = out_index;
+      ret[1] = row_index;
+      return ret;
+    }
+
+    private int writeColumns(int recordCount, byte[] inBytes, byte[] outBytes, int outIndex) {
+      int index = outIndex;      
+      
+      for(int fieldIndex = 0; fieldIndex < recordCount * columns; fieldIndex += columns) {        
+        for (int c : project ) {
+          int col = c + fieldIndex;
+          int length = endIndex[col] - beginIndex[col];        
+          System.arraycopy(inBytes, beginIndex[col], outBytes, index, length);
+          index += length;
+          outBytes[index++] = (byte) fieldDelim;
+        }
+        outBytes[index - 1] = (byte)recordDelim;
+      }
+
+      return index;
+    }
+
+    public boolean is_done() {
+      if (blockSize > 0 && totalBytes > blockSize){
+        return true;
+      }
+      return false;
     }
 
     public ByteBuf parse(ByteBuf inByteBuf) {      
@@ -429,6 +396,9 @@ final class ProjectionPlugin
         inBytes = new byte[bufferBytes + 128];
       }
 
+      int index, nextIndex, col, row_index, outIndex;
+      index = nextIndex = col = row_index = outIndex = 0;
+
       if (leftOverBytes > 0) {    
         System.arraycopy(leftOver, 0, inBytes, 0, leftOverBytes);        
       }      
@@ -437,31 +407,119 @@ final class ProjectionPlugin
 
       leftOver = null;
 
-      int index, nextIndex, col, lastRow, outIndex;
-      index = nextIndex = col = lastRow = outIndex = 0;
-
       if (seekRow || skipHeader) {
         seekRow = false;
-        skipHeader = false;                
-        while(index < bufferBytes){
-          byte b = inBytes[index++];
-          if(b == (byte)recordDelim) {
+        skipHeader = false;
+        for (int i = index; i < bufferBytes; i ++) {
+          if (inBytes[i] == recordDelim){
+            index = i+1;
+            totalBytes += (index - row_index );
+            row_index = index;            
             break;
           }
-        }
-
-        totalBytes += index - lastRow;
-        lastRow = index;
+        }        
       }
-      
-      outIndex = writeRecords(inBytes, index, bufferBytes, outBytes);        
+      if (false) {
+        int[] ret = parseRecords(inBytes, index, bufferBytes, outBytes);
+        outIndex = ret[0];
+        row_index = ret[1];
+      } else {      
+        // Main parsing loop     
+        while (index < bufferBytes){
+          int recordCount = parseRecords(inBytes, index, bufferBytes);
+          if (recordCount <= 0){
+            break;
+          }
+          outIndex = writeColumns(recordCount, inBytes, outBytes, outIndex);        
+          index = endIndex[recordCount * columns - 1] + 1;
+          row_index = index;
+          if (recordCount < MAX_RECORDS) { // End of data
+            break;
+          }          
+        }
+      }
+
+      if (!is_done()){
+        // Preserve remaining data
+        leftOver = Arrays.copyOfRange(inBytes, row_index, bufferBytes);
+      }
 
       ByteBuf outByteBuf = Unpooled.wrappedBuffer(outBytes, 0, outIndex);
       outByteBuf.retain();
       return outByteBuf;
     }
 
-  public ByteBuf parseSorted(ByteBuf inByteBuf) {
+    public ByteBuf parse(ByteBuf inByteBuf, Unsafe UnSafe) {
+      int outIndex = 0;
+      int readableBytes = inByteBuf.readableBytes();
+      //final long baseMemoryAddress = inByteBuf.memoryAddress();
+      final int baseMemoryAddress = 0;
+      final int lastMemoryAddress = baseMemoryAddress + readableBytes;
+      
+      int ptr = baseMemoryAddress;
+      int lastRow = ptr;
+            
+      if (outBytes == null || outBytes.length < readableBytes) {
+        outBytes = new byte[readableBytes];
+        inBytes = new byte[readableBytes];
+      }
+
+      inByteBuf.getBytes(inByteBuf.readerIndex(), inBytes, 0, readableBytes);
+
+      if (seekRow || skipHeader) {
+        seekRow = false;
+        skipHeader = false;
+        int bytesBeforeRecordDelim = inByteBuf.bytesBefore((byte)recordDelim);
+        ptr += bytesBeforeRecordDelim + 1;        
+        totalBytes += ptr - lastRow;
+        lastRow = ptr;
+      }
+
+      if (carryoverBytes > 0){
+        totalBytes += carryoverBytes;
+        carryoverBytes = 0;
+      }
+
+      int col = currentColumn;
+      boolean underQuote = currentUnderQuote;
+      boolean do_project = projectMask[col];      
+      while(ptr < lastMemoryAddress) { 
+        //byte b = UnSafe.getByte(null, ptr++);
+        byte b = inBytes[ptr++];
+        if (b == quoteDelim){
+          underQuote = !underQuote;
+        }
+        if ((b == recordDelim || b == fieldDelim) && !underQuote ) {
+          if (do_project) {
+            outBytes[outIndex++] = (byte)fieldDelim;            
+          }
+          if(++col == columns){ // End of record
+            outBytes[outIndex - 1] = (byte)recordDelim;            
+            totalBytes += ptr - lastRow;
+            lastRow = ptr;
+            col = 0;
+            if (is_done()){
+              break;
+            }
+          }
+          do_project = projectMask[col];
+        } else if (do_project) {
+          outBytes[outIndex++] = b;          
+        }        
+      }
+
+      currentColumn = col;
+      currentUnderQuote = underQuote;
+
+      if(!is_done()){                
+        carryoverBytes = ptr - lastRow;        
+      }
+      ByteBuf outByteBuf = Unpooled.wrappedBuffer(outBytes, 0, outIndex);
+      outByteBuf.retain();
+      return outByteBuf;
+    }  
+
+  public ByteBuf parseOrdered(ByteBuf inByteBuf) {
       int outIndex = 0;
       int readableBytes = inByteBuf.readableBytes();                  
       int index = 0;

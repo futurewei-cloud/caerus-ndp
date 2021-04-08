@@ -19,6 +19,7 @@ package org.dike.hdfs;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 
 import java.io.StringWriter;
@@ -37,6 +38,7 @@ import javax.xml.stream.XMLStreamException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileSystem.Statistics;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.commons.io.input.BoundedInputStream;
@@ -46,6 +48,7 @@ import org.apache.commons.io.input.BoundedInputStream;
  */
 public class NdpHdfsTest
 {
+    private boolean traceEnabled = false;
     public String GetProjectionConfig(boolean skipHeader, int columns, int [] projection,
                                       long blockSize) throws XMLStreamException
     {
@@ -95,13 +98,21 @@ public class NdpHdfsTest
     /**
      * Simple NdpHdfs Test :-)
      */
+
     @Test
     @DisplayName("Simple NdpHdfs test")
     public void testNdpHdfs()
     {
-        long totalDataSize = 0;
-        long totalRecords = 0;
+        int[] projection = new int [] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+        test("NdpHdfs Sorted", projection);
+        projection = new int [] {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+        test("NdpHdfs Random", projection);
+        test("NdpHdfs NoPushdown", null);
+    }
 
+    public void test(String name, int projection[])
+    {        
+        long totalRecords = 0;
         final Path fname = new Path("/lineitem.csv");
         String hadoopPath = System.getenv("HADOOP_PATH");
         assertTrue( hadoopPath != null );        
@@ -110,35 +121,54 @@ public class NdpHdfsTest
         conf.addResource( new Path(hadoopPath + "/etc/hadoop/core-client.xml") );
         conf.addResource( new Path(hadoopPath + "/etc/hadoop/hdfs-site.xml") );
 
-        System.out.println(conf.get("fs.defaultFS"));
+        //System.out.println(conf.get("fs.defaultFS"));
         Path ndpHdfsPath = new Path("ndphdfs://hadoop-ndp:9870/");
         try {
             FileSystem fs = FileSystem.get(ndpHdfsPath.toUri(), conf);
             BlockLocation[] locs = fs.getFileBlockLocations(fname, 0, Long.MAX_VALUE);
-            //int projection[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
-            int projection[] = {0, 1, 15 };
+            Map<String,Statistics> stats = fs.getStatistics();
+            stats.get(fs.getScheme()).reset();
+
+            long start_time = System.currentTimeMillis();
+            //int projection[] = {0, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+            //int projection[] = {0, 1, 15 };
             for (BlockLocation loc : locs) {
-                System.out.format("Offset=%d Length=%d\n", loc.getOffset(), loc.getLength());
-                String ndpConfig = GetProjectionConfig(true, 16, projection, loc.getLength());
+                //if (loc.getOffset() > 0){ continue;}
+                if(traceEnabled) {
+                    System.out.format("Offset=%d Length=%d\n", loc.getOffset(), loc.getLength());
+                }
                 NdpHdfsFileSystem ndpFS = (NdpHdfsFileSystem)fs;
-                FSDataInputStream is = ndpFS.open(fname, 128 << 10, ndpConfig);
+                FSDataInputStream is = null;
+                if (projection != null){
+                    String ndpConfig = GetProjectionConfig(true, 16, projection, loc.getLength());                    
+                    is = ndpFS.open(fname, 32 << 10, ndpConfig);
+                } else {
+                    is = ndpFS.open(fname);
+                }
                 is.seek(loc.getOffset());
-                BufferedReader br = new BufferedReader(new InputStreamReader(is,StandardCharsets.UTF_8), 128 << 10);
-                    String record = br.readLine();
-                    int counter = 0;
-                    while (record != null) {
-                        if(counter < 5) {
-                            System.out.println(record);
-                        }
+                BufferedReader br = null;
+                if (projection != null){
+                    br = new BufferedReader(new InputStreamReader(is,StandardCharsets.UTF_8), 128 << 10);
+                } else {
+                    br = new BufferedReader(new InputStreamReader(new BoundedInputStream(is, loc.getLength())));
+                }
 
-                        totalDataSize += record.length() + 1; // +1 to count end of line
-                        totalRecords += 1;
-                        counter += 1;
+                String record = br.readLine();
+                int counter = 0;
+                while (record != null) {
+                    if(traceEnabled && counter < 5 /* || counter > 1064140 */) {
+                        System.out.println(record);
+                    }                        
+                    totalRecords += 1;
+                    counter += 1;
 
-                        record = br.readLine(); // Should be last !!!
-                    }
-                    br.close();
-            }
+                    record = br.readLine(); // Should be last !!!
+                }
+                br.close();
+        }
+            long end_time = System.currentTimeMillis();            
+            System.out.format("%s: Received %d records (%d bytes) in %.3f sec\n", name, totalRecords, 
+                stats.get(fs.getScheme()).getBytesRead(), (end_time - start_time) / 1000.0);
         } catch (FileNotFoundException ex){
             System.out.println(ex.getMessage());
             assertTrue( false );
@@ -147,56 +177,4 @@ public class NdpHdfsTest
             assertTrue( false );
         }        
     }
-
-    @Test
-    @DisplayName("Simple NoPushdown test")
-    public void testNoPushdown()
-    {
-        long totalDataSize = 0;
-        long totalRecords = 0;
-
-        final Path fname = new Path("/lineitem.csv");
-        String hadoopPath = System.getenv("HADOOP_PATH");
-        assertTrue( hadoopPath != null );        
-        Configuration conf = new Configuration();
-        assertTrue( conf != null );
-        conf.addResource( new Path(hadoopPath + "/etc/hadoop/core-client.xml") );
-        conf.addResource( new Path(hadoopPath + "/etc/hadoop/hdfs-site.xml") );
-
-        System.out.println(conf.get("fs.defaultFS"));
-        Path ndpHdfsPath = new Path("ndphdfs://hadoop-ndp:9870/");
-        try {
-            FileSystem fs = FileSystem.get(ndpHdfsPath.toUri(), conf);
-            BlockLocation[] locs = fs.getFileBlockLocations(fname, 0, Long.MAX_VALUE);
-           for (BlockLocation loc : locs) {
-                System.out.format("Offset=%d Length=%d\n", loc.getOffset(), loc.getLength());
-                FSDataInputStream is = fs.open(fname);
-                is.seek(loc.getOffset());
-                BufferedReader br = new BufferedReader(new InputStreamReader(new BoundedInputStream(is, loc.getLength())));
-                    String record = br.readLine();
-                    int counter = 0;
-                    while (record != null) {
-                        if(counter < 5) {
-                            System.out.println(record);
-                        }
-
-                        totalDataSize += record.length() + 1; // +1 to count end of line
-                        totalRecords += 1;
-                        counter += 1;
-
-                        record = br.readLine(); // Should be last !!!
-                    }
-                    br.close();
-            }
-        } catch (FileNotFoundException ex){
-            System.out.println(ex.getMessage());
-            assertTrue( false );
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            assertTrue( false );
-        }
-
-
-        assertTrue( true );
-    }    
 }
