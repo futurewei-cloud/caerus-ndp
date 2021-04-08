@@ -1,0 +1,35 @@
+Caerus NDP
+This repository is released under Apache 2.0 license.
+External Dependencies:
+	Partially copied with modifications:
+	Name: Spark-select 
+	Link: https://github.com/minio/spark-select
+	License: Apache 2.0
+	Link to License: https://github.com/minio/spark-select/blob/master/LICENSE
+
+	Cloned without modifications:
+	Name: Spark (IBM) branch 
+	Link: https://github.com/apache/spark
+	License: Apache 2.0
+	Link to License: https://github.com/apache/spark/blob/master/LICENSE
+
+	Cloned with modifications:	
+	Name: spark-sql-perf
+	Link: https://github.com/databricks/spark-sql-perf
+	License: Apache 2.0
+	Link to License: https://github.com/databricks/spark-sql-perf/blob/master/LICENSE
+
+	Cloned with modifications:
+	Name: databricks/tpch-dbgen
+	Link: https://github.com/databricks/tpch-dbgen
+	License: Other
+	Link to License: http://tpc.org/tpc_documents_current_versions/txt/tpc-eula_v2.2.0.txt
+	
+        Cloned with modifications, copied with modifications:
+        Name: Hadoop, and HDFS WebHDFS client
+        Link: https://github.com/apache/hadoop
+        License: Apache 2.0
+        Link to License: https://github.com/apache/hadoop/blob/trunk/LICENSE.txt
+            
+
+
