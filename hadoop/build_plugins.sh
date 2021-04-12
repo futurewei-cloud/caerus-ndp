@@ -20,6 +20,7 @@ set -e               # exit on error
 pushd "$(dirname "$0")" # connect to root
 
 ROOT_DIR=$(pwd)
+# shellcheck source=/dev/null
 source ${ROOT_DIR}/config.sh
 
 USER_NAME=${SUDO_USER:=$USER}
@@ -40,31 +41,31 @@ HADOOP_PATH=/opt/hadoop/hadoop-${HADOOP_VERSION}
 # within the container and use the result on your normal
 # system.  And this also is a significant speedup in subsequent
 # builds because the dependencies are downloaded only once.
-mkdir -p ${ROOT_DIR}/build/.m2
-mkdir -p ${ROOT_DIR}/build/.gnupg
+mkdir -p "${ROOT_DIR}/build/.m2"
+mkdir -p "${ROOT_DIR}/build/.gnupg"
 
 # Can be used to share data for tests
-mkdir -p ${ROOT_DIR}/build/data
+mkdir -p "${ROOT_DIR}/build/data"
 
 
 if [ "$#" -ge 1 ] ; then
-  CMD="$@"
+  CMD="$*"
 fi
 
-docker run --rm=true $DOCKER_INTERACTIVE_RUN \
-  -v "${ROOT_DIR}/etc/hadoop/core-site.xml:${HADOOP_PATH}/etc/hadoop/core-site.xml" \
-  -v "${ROOT_DIR}/etc/hadoop/hdfs-site.xml:${HADOOP_PATH}/etc/hadoop/hdfs-site.xml" \
-  -v "${ROOT_DIR}/etc/hadoop/core-client.xml:${HADOOP_PATH}/etc/hadoop/core-client.xml" \
-  -v "${ROOT_DIR}/bin/start-hadoop.sh:${HADOOP_PATH}/bin/start-hadoop.sh" \
-  -v "${ROOT_DIR}/plugins:${DOCKER_HOME_DIR}/plugins" \
-  -v "${ROOT_DIR}/clients:${DOCKER_HOME_DIR}/clients" \
-  -v "${ROOT_DIR}/build/.m2:${DOCKER_HOME_DIR}/.m2" \
-  -v "${ROOT_DIR}/build/.gnupg:${DOCKER_HOME_DIR}/.gnupg" \
-  -v "${ROOT_DIR}/build/data:${DOCKER_HOME_DIR}/data" \
-  -w "${DOCKER_HOME_DIR}" \
+DOCKER_CMD="docker run --rm=true $DOCKER_INTERACTIVE_RUN \
+  -v ${ROOT_DIR}/etc/hadoop/core-site.xml:${HADOOP_PATH}/etc/hadoop/core-site.xml \
+  -v ${ROOT_DIR}/etc/hadoop/hdfs-site.xml:${HADOOP_PATH}/etc/hadoop/hdfs-site.xml \
+  -v ${ROOT_DIR}/etc/hadoop/core-client.xml:${HADOOP_PATH}/etc/hadoop/core-client.xml \
+  -v ${ROOT_DIR}/bin/start-hadoop.sh:${HADOOP_PATH}/bin/start-hadoop.sh \
+  -v ${ROOT_DIR}/plugins:${DOCKER_HOME_DIR}/plugins \
+  -v ${ROOT_DIR}/clients:${DOCKER_HOME_DIR}/clients \
+  -v ${ROOT_DIR}/build/.m2:${DOCKER_HOME_DIR}/.m2 \
+  -v ${ROOT_DIR}/build/.gnupg:${DOCKER_HOME_DIR}/.gnupg \
+  -v ${ROOT_DIR}/build/data:${DOCKER_HOME_DIR}/data \
+  -w ${DOCKER_HOME_DIR} \
   -e HADOOP_PATH=${HADOOP_PATH} \
-  -u "${USER_ID}" \
+  -u ${USER_ID} \
   --network dike-net \
-  "hadoop-${HADOOP_VERSION}-ndp-${USER_NAME}" ${CMD}
-
+  hadoop-${HADOOP_VERSION}-ndp-${USER_NAME} ${CMD}"
+eval "$DOCKER_CMD"
 popd

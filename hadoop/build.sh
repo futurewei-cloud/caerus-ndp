@@ -20,8 +20,9 @@ set -e               # exit on error
 pushd "$(dirname "$0")" # connect to root
 
 ROOT_DIR=$(pwd)
-source ${ROOT_DIR}/config.sh
-${ROOT_DIR}/docker/build.sh  || (echo "*** docker/build.sh failed with $?" ; exit 1)
-${ROOT_DIR}/build_plugins.sh || (echo "*** build_plugins.sh failed with $?" ; exit 1)
-${ROOT_DIR}/build_clients.sh || (echo "*** build_clients.sh failed with $?" ; exit 1)
+# shellcheck source=/dev/null
+source "${ROOT_DIR}/config.sh"
+"${ROOT_DIR}/docker/build.sh"  || (echo "*** docker/build.sh failed with $?" ; exit 1)
+"${ROOT_DIR}/build_plugins.sh" || (echo "*** build_plugins.sh failed with $?" ; exit 1)
+"${ROOT_DIR}/build_clients.sh" || (echo "*** build_clients.sh failed with $?" ; exit 1)
 popd

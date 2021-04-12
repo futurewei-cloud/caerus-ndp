@@ -21,13 +21,15 @@ pushd "$(dirname "$0")" # connect to root
 
 ROOT_DIR=$(pwd)
 
+# shellcheck source=/dev/null
 source ${ROOT_DIR}/../config.sh
 
 DOCKER_DIR=${ROOT_DIR}
 DOCKER_FILE="${DOCKER_DIR}/Dockerfile"
 DOCKER_NAME="hadoop-${HADOOP_VERSION}-ndp"
 
-docker build -t ${DOCKER_NAME} --build-arg HADOOP_VERSION -f $DOCKER_FILE $DOCKER_DIR
+DOCKER_CMD="docker build -t ${DOCKER_NAME} --build-arg HADOOP_VERSION -f $DOCKER_FILE $DOCKER_DIR"
+eval "$DOCKER_CMD"
 
 USER_NAME=${SUDO_USER:=$USER}
 USER_ID=$(id -u "${USER_NAME}")
