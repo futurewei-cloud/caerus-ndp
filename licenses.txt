@@ -8,7 +8,7 @@ External Dependencies:
 	Link to License: https://github.com/minio/spark-select/blob/master/LICENSE
 
 	Cloned without modifications:
-	Name: Spark (IBM) branch 
+	Name: Spark official repo
 	Link: https://github.com/apache/spark
 	License: Apache 2.0
 	Link to License: https://github.com/apache/spark/blob/master/LICENSE
@@ -22,12 +22,12 @@ External Dependencies:
 	Cloned with modifications:
 	Name: databricks/tpch-dbgen
 	Link: https://github.com/databricks/tpch-dbgen
-	License: Other
-	Link to License: http://tpc.org/tpc_documents_current_versions/txt/tpc-eula_v2.2.0.txt
+	License: None.
+	Note:  This code seems to be using content originating under the following license: http://tpc.org/tpc_documents_current_versions/txt/tpc-eula_v2.2.0.txt.
 	
-        Cloned with modifications, copied with modifications:
-        Name: Hadoop, and HDFS WebHDFS client
-        Link: https://github.com/apache/hadoop
+        Single file copied with modifications:
+        Name: NDP HDFS filesystem
+        Link: https://github.com/apache/hadoop/blob/trunk/hadoop-hdfs-project/hadoop-hdfs-client/src/main/java/org/apache/hadoop/hdfs/web/WebHdfsFileSystem.java
         License: Apache 2.0
         Link to License: https://github.com/apache/hadoop/blob/trunk/LICENSE.txt
             
