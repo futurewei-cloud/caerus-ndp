@@ -1,19 +1,20 @@
 #!/bin/bash
 
 # Include the setup for our cached local directories. (.m2, .ivy2, etc)
+# shellcheck disable=SC1091
 source docker/setup.sh
 
-mkdir -p ${ROOT_DIR}/volume/logs
-rm -f ${ROOT_DIR}/volume/logs/master*.log
+mkdir -p "${ROOT_DIR}/volume/logs"
+rm -f "${ROOT_DIR}/volume/logs/master*.log"
 
-mkdir -p ${ROOT_DIR}/volume/status
-rm -f ${ROOT_DIR}/volume/status/MASTER*
+mkdir -p "${ROOT_DIR}/volume/status"
+rm -f "${ROOT_DIR}/volume/status/MASTER*"
 
 CMD="${DOCKER_HOME_DIR}/bin/start-master.sh"
 RUNNING_MODE="daemon"
 
 if [ "$#" -ge 1 ] ; then
-  CMD="$@"
+  CMD="$*"
   RUNNING_MODE="interactive"
 fi
 
@@ -46,12 +47,12 @@ DOCKER_RUN="docker run ${DOCKER_IT} --rm \
 
     
 if [ $RUNNING_MODE = "interactive" ]; then
-  eval ${DOCKER_RUN}
+  eval "${DOCKER_RUN}"
 else
-  eval ${DOCKER_RUN} &
-  while [ ! -f ${ROOT_DIR}/volume/status/SPARK_MASTER_STATE ]; do
+  eval "${DOCKER_RUN}" &
+  while [ ! -f "${ROOT_DIR}/volume/status/SPARK_MASTER_STATE" ]; do
     sleep 1  
   done
 
-  cat ${ROOT_DIR}/volume/status/SPARK_MASTER_STATE  
+  cat "${ROOT_DIR}/volume/status/SPARK_MASTER_STATE"
 fi

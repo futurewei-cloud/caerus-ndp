@@ -6,6 +6,6 @@ echo "SPARK_MASTER_READY" > /opt/volume/status/SPARK_MASTER_STATE
 
 echo "RUNNING_MODE $RUNNING_MODE"
 
-if [ $RUNNING_MODE = "daemon" ]; then
+if [ "$RUNNING_MODE" = "daemon" ]; then
     sleep infinity
 fi

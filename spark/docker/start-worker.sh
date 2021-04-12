@@ -1,18 +1,19 @@
 #!/bin/bash
 
+# shellcheck disable=SC1091
 source docker/setup.sh
 
-mkdir -p ${ROOT_DIR}/volume/logs
-rm -f ${ROOT_DIR}/volume/logs/worker*.log
+mkdir -p "${ROOT_DIR}/volume/logs"
+rm -f "${ROOT_DIR}/volume/logs/worker*.log"
 
-mkdir -p ${ROOT_DIR}/volume/worker/status
-rm -f ${ROOT_DIR}/volume/status/WORKER*
+mkdir -p "${ROOT_DIR}/volume/worker/status"
+rm -f "${ROOT_DIR}/volume/status/WORKER*"
 
 CMD="${DOCKER_HOME_DIR}/bin/start-worker.sh"
 RUNNING_MODE="daemon"
 
 if [ "$#" -ge 1 ] ; then
-  CMD="$@"
+  CMD="$*"
   RUNNING_MODE="interactive"
 fi
 
@@ -46,13 +47,13 @@ DOCKER_RUN="docker run ${DOCKER_IT} --rm -p 8081:8081 \
 
     
 if [ $RUNNING_MODE = "interactive" ]; then
-  eval ${DOCKER_RUN}
+  eval "${DOCKER_RUN}"
 else
-  eval ${DOCKER_RUN} &
-  while [ ! -f ${ROOT_DIR}/volume/status/SPARK_WORKER_STATE ]; do
+  eval "${DOCKER_RUN}" &
+  while [ ! -f "${ROOT_DIR}/volume/status/SPARK_WORKER_STATE" ]; do
     sleep 1  
   done
 
-  cat ${ROOT_DIR}/volume/status/SPARK_WORKER_STATE  
+  cat "${ROOT_DIR}/volume/status/SPARK_WORKER_STATE"
 fi
 

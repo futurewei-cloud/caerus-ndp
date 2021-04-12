@@ -17,7 +17,6 @@
 
 ROOT_DIR=$(pwd)
 DOCKER_DIR=docker
-DOCKER_FILE="${DOCKER_DIR}/Dockerfile"
 
 USER_NAME=${SUDO_USER:=$USER}
 USER_ID=$(id -u "${USER_NAME}")
@@ -33,10 +32,10 @@ DOCKER_INTERACTIVE_RUN=${DOCKER_INTERACTIVE_RUN-"-i -t"}
 # within the container and use the result on your normal
 # system.  And this also is a significant speedup in subsequent
 # builds because the dependencies are downloaded only once.
-mkdir -p ${ROOT_DIR}/build/.m2
-mkdir -p ${ROOT_DIR}/build/.gnupg
-mkdir -p ${ROOT_DIR}/build/.ivy2
-mkdir -p ${ROOT_DIR}/build/.cache
-mkdir -p ${ROOT_DIR}/build/.sbt
+mkdir -p "${ROOT_DIR}/build/.m2"
+mkdir -p "${ROOT_DIR}/build/.gnupg"
+mkdir -p "${ROOT_DIR}/build/.ivy2"
+mkdir -p "${ROOT_DIR}/build/.cache"
+mkdir -p "${ROOT_DIR}/build/.sbt"
 
 echo "Successfully included setup.sh"

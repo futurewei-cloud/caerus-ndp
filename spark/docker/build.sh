@@ -20,8 +20,6 @@ ROOT_DIR=$(pwd)
 DOCKER_DIR=${ROOT_DIR}
 DOCKER_FILE="${DOCKER_DIR}/Dockerfile"
 
-CPU_ARCH=$(echo "$MACHTYPE" | cut -d- -f1)
-
 USER_NAME=${SUDO_USER:=$USER}
 USER_ID=$(id -u "${USER_NAME}")
 
@@ -61,7 +59,7 @@ fi
 echo "User id is: $USER_ID"
 echo "Group id is: $GROUP_ID"
 
-docker build -f Dockerfile -t caerus-ndp-spark-base .
+docker build -f "${DOCKER_FILE}" -t caerus-ndp-spark-base .
 echo "Done building caerus-ndp-spark-base docker"
 
 # Set the home directory in the Docker container.

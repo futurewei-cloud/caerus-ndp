@@ -3,9 +3,9 @@
 rm -rf build
 rm -rf results
 
-cd tpch-dbgen
-make clean
-cd ../
+pushd tpch-dbgen || (echo "*** failed to find tpch-dbgen" ; exit 1)
+make clean || (echo "*** failed build of tpch-dbgen" ; exit 1)
+popd
 echo "Done cleaning tpch-dbgen"
 
 rm -rf perf-test/build
