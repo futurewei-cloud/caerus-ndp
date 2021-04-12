@@ -22,6 +22,8 @@ import com.typesafe.config._
 import org.slf4j.LoggerFactory
 import scopt.OParser
 
+import org.apache.spark.sql.{DataFrame, Row, SparkSession, SQLContext}
+
 /** The test configuration, which is mostly obtained through either
  *  defaults or through command line parameters.
  */
@@ -150,6 +152,18 @@ object PerfTest {
       }
     }
   }
+  def setLogLevel(config: Config): Unit = {
+    val spark = SparkSession.builder()
+      .appName("tpc-test")
+      .getOrCreate();
+    if (config.verbose) {
+      spark.sparkContext.setLogLevel("TRACE")
+    } else if (config.quiet) {
+      spark.sparkContext.setLogLevel("WARN")
+    } else if (config.normal) {
+      spark.sparkContext.setLogLevel("INFO")
+    }
+  }
   /** The main entry point for this performance test.
    *  Here we will parse the args, and create a new database object to
    *  run the test or generate the database for.
@@ -159,6 +173,7 @@ object PerfTest {
    */
   def main(args: Array[String]) {
     val config = parseArgs(args)
+    setLogLevel(config)
 
     log.info(s"gen: ${config.gen} test: ${config.testList.mkString(",")}" +
              s" pushdown: ${config.pushdown} datasource: ${config.datasource}" +
