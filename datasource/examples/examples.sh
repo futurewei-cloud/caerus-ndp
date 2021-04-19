@@ -36,11 +36,10 @@ if [ ${DEBUG} == "YES" ]; then
   shift
   DOCKER_CMD="docker exec -it sparkmaster spark-submit --master local \
   --class com.github.datasource.tests.${TEST} \
-  --conf spark.jars.ivy=/build/ivy \
-  --conf spark.driver.extraJavaOptions=-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=172.18.0.2:5005 \
+  --conf spark.driver.extraJavaOptions=\"-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=172.19.0.2:5005\" \
   --packages com.github.scopt:scopt_2.12:4.0.0-RC2,com.typesafe:config:1.4.1 \
   --jars /datasource/datasource/lib/ndp-hdfs-1.0.jar,/datasource/datasource/target/scala-2.12/ndp-datasource_2.12-0.1.0.jar \
-   /benchmark/perf-test/target/scala-2.12/perf-test_2.12-1.0.jar $*"
+   /datasource/examples/target/scala-2.12/ndp-examples_2.12-0.1.0.jar $*"
 else
   DOCKER_CMD="docker exec -it sparkmaster spark-submit --master local[$WORKERS] \
   --class com.github.datasource.tests.${TEST} \

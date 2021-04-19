@@ -26,6 +26,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.fs.FSDataOutputStream
 import org.apache.hadoop.fs.Path
+import org.slf4j.LoggerFactory
 
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
@@ -38,6 +39,8 @@ import org.apache.spark.sql.types._
  *  reads the data back using ndp pushdown of project.
  */
 object DatasourceExample {
+
+  private val logger = LoggerFactory.getLogger(getClass)
   private val debug = false
   private val sparkSession = SparkSession.builder
     .master("local[1]")
@@ -71,10 +74,14 @@ object DatasourceExample {
         .option("DisableProjectPush", "")
         .load(s"ndphdfs://${host}${SampleData.dataPath}")
     } else {
+      val fileName = s"hdfs://${host}:9000/${SampleData.dataPath}"
+      logger.info(s"file: $fileName")
+
+      // sparkSession.conf.set("spark.sql.sources.useV1SourceList", "")
       sparkSession.read
       .schema(schema)
-      .format("pushdown")
-      .load(s"ndphdfs://${host}${SampleData.dataPath}")
+      .format("pushdownFile")
+      .load(fileName)
     }
 
     ndpDF.show()

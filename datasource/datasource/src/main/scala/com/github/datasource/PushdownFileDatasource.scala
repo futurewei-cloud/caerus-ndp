@@ -21,46 +21,55 @@ import java.util
 import scala.collection.JavaConverters._
 
 import com.github.datasource.common.Pushdown
-import com.github.datasource.hdfs.{HdfsScan, HdfsStore}
+import com.github.datasource.hdfs.{HdfsFileScan, HdfsStore, PushdownFileFormat}
+import org.apache.hadoop.fs.FileStatus
 import org.slf4j.LoggerFactory
 
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.catalog.{SessionConfigSupport, SupportsRead,
                                                Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.connector.read._
+import org.apache.spark.sql.connector.write.{LogicalWriteInfo, WriteBuilder}
+import org.apache.spark.sql.execution.datasources.FileFormat
+import org.apache.spark.sql.execution.datasources.PartitioningAwareFileIndex
+import org.apache.spark.sql.execution.datasources.csv.CSVFileFormat
+import org.apache.spark.sql.execution.datasources.v2.{FileDataSourceV2, FileScanBuilder, FileTable}
+import org.apache.spark.sql.execution.datasources.v2.csv.CSVWriteBuilder
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-
 /** Creates a data source object for Spark that
  *  supports pushdown of predicates such as Project, and Filter.
  *
  */
-class PushdownDatasource extends TableProvider
-  with SessionConfigSupport with DataSourceRegister {
+class PushdownFileDatasource extends FileDataSourceV2
+    with SessionConfigSupport  {
+
+  override def fallbackFileFormat: Class[_ <: FileFormat] = classOf[PushdownFileFormat]
 
   private val logger = LoggerFactory.getLogger(getClass)
-  logger.trace("Pushdown Data Source Created")
   override def toString: String = s"PushdownDataSource()"
   override def supportsExternalMetadata(): Boolean = true
 
   override def inferSchema(options: CaseInsensitiveStringMap): StructType = {
     throw new IllegalArgumentException("requires a user-supplied schema")
   }
-
-  override def getTable(schema: StructType,
-                        transforms: Array[Transform],
-                        options: util.Map[String, String]): Table = {
-    logger.trace("getTable: Options " + options)
-    new PushdownBatchTable(schema, options)
+  override def getTable(options: CaseInsensitiveStringMap): Table = {
+    throw new IllegalArgumentException("requires a user-supplied schema")
+  }
+  override def getTable(options: CaseInsensitiveStringMap, schema: StructType): Table = {
+    val paths = getPaths(options)
+    val optionsWithoutPaths = getOptionsWithoutPaths(options)
+    new PushdownFileTable(sparkSession, optionsWithoutPaths, paths, schema, fallbackFileFormat)
   }
 
   override def keyPrefix(): String = {
-    "pushdown"
+    "pushdownFile"
   }
-  override def shortName(): String = "pushdown"
+  override def shortName(): String = "pushdownFile"
 }
 
 /** Creates a Table object that supports pushdown predicates
@@ -72,21 +81,35 @@ class PushdownDatasource extends TableProvider
  *                "accessKey" and "secretKey" are the credentials for above server.
  *                 "path" is the full path to the file.
  */
-class PushdownBatchTable(schema: StructType,
-                         options: util.Map[String, String])
-  extends Table with SupportsRead {
+ case class PushdownFileTable(
+    sparkSession: SparkSession,
+    options: CaseInsensitiveStringMap,
+    paths: Seq[String],
+    userDefinedSchema: StructType,
+    fallbackFileFormat: Class[_ <: FileFormat])
+  extends FileTable(sparkSession, options, paths, Some(userDefinedSchema)) {
 
   private val logger = LoggerFactory.getLogger(getClass)
-  logger.trace("Created")
+  // override def fallbackFileFormat: Class[_ <: FileFormat] = fallbackFileFormat
   override def name(): String = this.getClass.toString
-
-  override def schema(): StructType = schema
-
-  override def capabilities(): util.Set[TableCapability] =
-    Set(TableCapability.BATCH_READ).asJava
+  override def formatName(): String = "pushdownFile"
+  def inferSchema(files: Seq[org.apache.hadoop.fs.FileStatus]):
+      Option[StructType] = Some(schema)
 
   override def newScanBuilder(params: CaseInsensitiveStringMap): ScanBuilder =
-      new PushdownScanBuilder(schema, options)
+      new PushdownFileScanBuilder(sparkSession, fileIndex, schema, dataSchema, paths,
+                                  options)
+
+  override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder =
+    new CSVWriteBuilder(paths, formatName, supportsDataType, info)
+
+  override def supportsDataType(dataType: DataType): Boolean = dataType match {
+    case _: AtomicType => true
+
+    // case udt: UserDefinedType[_] => true supportsDataType(udt.sqlType)
+
+    case _ => false
+  }
 }
 
 /** Creates a builder for scan objects.
@@ -95,15 +118,18 @@ class PushdownBatchTable(schema: StructType,
  * @param schema the format of the columns
  * @param options the options (see PushdownBatchTable for full list.)
  */
-class PushdownScanBuilder(schema: StructType,
-                          options: util.Map[String, String])
-  extends ScanBuilder
-    with SupportsPushDownRequiredColumns {
+ case class PushdownFileScanBuilder(
+    sparkSession: SparkSession,
+    fileIndex: PartitioningAwareFileIndex,
+    schema: StructType,
+    dataSchema: StructType,
+    paths: Seq[String],
+    options: CaseInsensitiveStringMap)
+  extends FileScanBuilder(sparkSession, fileIndex, dataSchema)
+      with SupportsPushDownRequiredColumns {
 
   private val logger = LoggerFactory.getLogger(getClass)
   private var prunedSchema: StructType = schema
-
-  logger.trace("Created")
 
   /** Returns a scan object for this particular query.
    *   Currently we only support Hdfs.
@@ -111,10 +137,16 @@ class PushdownScanBuilder(schema: StructType,
    * @return the scan object either a HdfsScan
    */
   override def build(): Scan = {
-    if (!options.get("path").contains("hdfs")) {
+    if (false && !options.get("path").contains("hdfs")) {
       throw new Exception(s"endpoint ${options.get("endpoint")} is unexpected")
     }
-    new HdfsScan(schema, options, prunedSchema)
+    new HdfsFileScan(sparkSession,
+      fileIndex,
+      dataSchema,
+      readDataSchema(),
+      readPartitionSchema(),
+      paths,
+      options)
   }
   private val shouldPushdown: Boolean = {
     HdfsStore.pushdownSupported(options)
@@ -124,7 +156,7 @@ class PushdownScanBuilder(schema: StructType,
    * @return true if pushdown supported, false otherwise
    */
   private def pushdownSupported(): Boolean = {
-    if (!options.get("path").contains("hdfs")) {
+    if (false && !options.get("path").contains("hdfs")) {
       throw new Exception(s"path ${options.get("path")} is unexpected")
     }
     shouldPushdown

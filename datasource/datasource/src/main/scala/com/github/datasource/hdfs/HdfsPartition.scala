@@ -19,7 +19,10 @@ package com.github.datasource.hdfs
 import com.github.datasource.common.PushdownPartition
 
 import org.apache.spark.Partition
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.connector.read.InputPartition
+import org.apache.spark.sql.execution.datasources.FilePartition
+import org.apache.spark.sql.execution.datasources.PartitionedFile
 
 /** Represents a partition on an hdfs file system
  *
@@ -28,11 +31,13 @@ import org.apache.spark.sql.connector.read.InputPartition
  * @param length the total bytes in the file
  * @param name the full path of the file
  */
-class HdfsPartition(var index: Int,
+class HdfsPartition(index: Int,
                     var offset: Long = 0,
                     var length: Long = 0,
                     var name: String = "")
-  extends Partition with InputPartition with PushdownPartition {
+  extends FilePartition(index,
+                        Array(PartitionedFile(InternalRow.empty,
+                        name, offset, length))) with InputPartition with PushdownPartition {
 
   override def toString() : String = {
     s"""HdfsPartition index ${index} offset: ${offset} length: ${length} """ +

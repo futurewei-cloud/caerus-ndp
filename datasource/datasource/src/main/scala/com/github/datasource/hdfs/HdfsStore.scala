@@ -29,6 +29,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer, Map}
 import scala.util.control.NonFatal
 
 import com.github.datasource.common.Pushdown
+import com.github.datasource.parse.{NdpCsvParser, NdpUnivocityParser}
 import com.github.datasource.parse.RowIteratorFactory
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
@@ -46,8 +47,10 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.csv.CSVOptions
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.connector.read._
+import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 
 /** A Factory to fetch the correct type of
@@ -62,9 +65,10 @@ object HdfsStoreFactory {
    * @return a new HdfsStore object constructed with above parameters.
    */
   def getStore(schema: StructType,
+               paths: Seq[String],
                params: java.util.Map[String, String],
                prunedSchema: StructType): HdfsStore = {
-    new HdfsStore(schema, params, prunedSchema)
+    new HdfsStore(schema, paths, params, prunedSchema)
   }
 }
 /** A hdfs store object which can connect
@@ -76,11 +80,12 @@ object HdfsStoreFactory {
  * @param prunedSchema the schema to pushdown (column pruning)
  */
 class HdfsStore(schema: StructType,
+                paths: Seq[String],
                 params: java.util.Map[String, String],
                 prunedSchema: StructType) {
 
   override def toString() : String = "HdfsStore" + params
-  protected val path = params.get("path")
+  protected val path = paths(0)
   protected val fileFormat = {
     if (params.containsKey("format")) {
       params.get("format")
@@ -96,16 +101,7 @@ class HdfsStore(schema: StructType,
      */
     (prunedSchema.length != schema.length)
   }
-  protected val endpoint = {
-    val server = path.split("/")(2)
-    if (path.contains("ndphdfs://")) {
-      ("ndphdfs://" + server + ":9870")
-    } else if (path.contains("webhdfs://")) {
-      ("webhdfs://" + server + ":9870")
-    } else {
-      ("hdfs://" + server + ":9000")
-    }
-  }
+  protected val endpoint = HdfsStore.getEndpoint(path)
   protected val logger = LoggerFactory.getLogger(getClass)
   protected val (readColumns: String,
                  readSchema: StructType) = {
@@ -113,15 +109,12 @@ class HdfsStore(schema: StructType,
     (columns, schema)
   }
   protected val fileSystem = {
-    val conf = new Configuration()
-    // Configure to pick up our NDP Filesystem.
-    conf.set("fs.ndphdfs.impl", classOf[org.dike.hdfs.NdpHdfsFileSystem].getName)
+    val fs = HdfsStore.getFileSystem(path)
 
     if (path.contains("ndphdfs")) {
-      val fs = FileSystem.get(URI.create(endpoint), conf)
       fs.asInstanceOf[NdpHdfsFileSystem]
     } else {
-      FileSystem.get(URI.create(endpoint), conf)
+      fs
     }
   }
   val filePath = {
@@ -133,11 +126,18 @@ class HdfsStore(schema: StructType,
       } else if (path.contains("webhdfs")) {
         path.replace(server, server + ":9870")
       } else {
-        path.replace(server, server + ":9000")
+        path.replace(server, server + {if (!server.contains(":9000")) ":9000" else ""})
       }
     }
     pathName
   }
+  /** Returns the length of the file in bytes.
+   *
+   * @param fileName the full path of the file
+   * @return byte length of the file.
+   */
+  def getLength(fileName: String) : Long = HdfsStore.getLength(fileName)
+
   protected val fileSystemType = fileSystem.getScheme
   /** returns the index of a field matching an input name in a schema.
    *
@@ -176,7 +176,8 @@ class HdfsStore(schema: StructType,
             getSchemaIndex(schema, x.name)
         }).mkString(",")
         logger.info(s"Pushdown project: ${projectColumns} to " +
-                    s"${fileSystemType} partition: ${partition.toString}")
+                    s"${fileSystemType} columns: ${schema.length} " +
+                    s"partition: ${partition.toString}")
         new ProcessorRequest(schema.fields.size.toString, projectColumns, partition.length).toXml
       }
     }
@@ -229,16 +230,6 @@ class HdfsStore(schema: StructType,
     }
     blockMap.toMap
   }
-  /** Returns the length of the file in bytes.
-   *
-   * @param fileName the full path of the file
-   * @return byte length of the file.
-   */
-  def getLength(fileName: String) : Long = {
-    val fileToRead = new Path(filePath)
-    val fileStatus = fileSystem.getFileStatus(fileToRead)
-    fileStatus.getLen
-  }
   /** Returns the offset, length in bytes of an hdfs partition.
    *  This takes into account any prior lines that might be incomplete
    *  from the prior partition.
@@ -286,6 +277,21 @@ class HdfsStore(schema: StructType,
     } while ((nextChar.toChar != '\n') && (nextChar != -1));
     (startOffset, partitionLength)
   }
+
+  private val csvOptions = new CSVOptions(
+    scala.collection.immutable.Map.empty[String, String], false, "UTC")
+  val parser = new NdpUnivocityParser(readSchema, readSchema,
+                                   csvOptions,
+                                   Seq.empty[Filter])
+  /** Returns an Iterator over InternalRow for a given Hdfs partition.
+   *
+   * @param partition the partition to read
+   * @return a new CsvRowIterator for this partition.
+   */
+  def getRowIterNew(partition: HdfsPartition): Iterator[InternalRow] = {
+    val (offset, length) = getPartitionInfo(partition)
+    NdpCsvParser.readFile1(partition.name, offset, length, parser, prunedSchema)
+  }
   /** Returns an Iterator over InternalRow for a given Hdfs partition.
    *
    * @param partition the partition to read
@@ -303,7 +309,8 @@ class HdfsStore(schema: StructType,
  *
  */
 object HdfsStore {
-
+  protected val logger = LoggerFactory.getLogger(getClass)
+  val pushdownLength = 2 * 128 * (1024 * 1024)
   /** Returns true if pushdown is supported by this flavor of
    *  filesystem represented by a string of "filesystem://filename".
    *
@@ -311,11 +318,64 @@ object HdfsStore {
    * @return true if pushdown supported, false otherwise.
    */
   def pushdownSupported(options: util.Map[String, String]): Boolean = {
-    if (options.get("path").contains("ndphdfs://")) {
-      true
+    if (options.containsKey("DisableProjectPush")) {
+      return false
+    }
+    val fileName = options.get("path")
+    if (fileName.contains("ndphdfs://")) {
+      val len = getLength(fileName)
+      val ret = (len >= pushdownLength)
+      // logger.warn(s"pushdownSupported: len: ${len} ret: ${ret}")
+      ret
     } else {
       // other filesystems like hdfs and webhdfs do not support pushdown.
       false
+    }
+  }
+  def getEndpoint(path: String): String = {
+    val server = path.split("/")(2)
+    if (path.contains("ndphdfs://")) {
+      ("ndphdfs://" + server + ":9870")
+    } else if (path.contains("webhdfs://")) {
+      ("webhdfs://" + server + ":9870")
+    } else {
+      ("hdfs://" + server + {if (!server.contains(":9000")) ":9000" else ""})
+    }
+  }
+  def getFileSystem(path: String): FileSystem = {
+    val endpoint = getEndpoint(path)
+    val conf = new Configuration()
+    // Configure to pick up our NDP Filesystem.
+    conf.set("fs.ndphdfs.impl", classOf[org.dike.hdfs.NdpHdfsFileSystem].getName)
+    FileSystem.get(URI.create(endpoint), conf)
+  }
+  /** Returns the length of the file in bytes.
+   *
+   * @param fileName the full path of the file
+   * @return byte length of the file.
+   */
+  def getLength(fileName: String) : Long = {
+    val fileToRead = new Path(fileName)
+    val fileSystem = getFileSystem(fileName)
+    if (fileSystem.isFile(fileToRead)) {
+      // The file is not a directory, just get size of file.
+      val fileStatus = fileSystem.getFileStatus(fileToRead)
+      fileStatus.getLen
+    } else {
+      /* fileToRead is a directory. So get the contents of this directory.
+       * The length will be the sum of the length of the files.
+       */
+      val status = fileSystem.listStatus(fileToRead)
+      var totLength: Long = 0
+      for (item <- status) {
+        if (item.isFile && item.getPath.getName.contains(".csv")) {
+          val currentFile = item.getPath.toString
+          logger.info(s"file: ${item.getPath.toString}")
+          val fileStatus = fileSystem.getFileStatus(item.getPath)
+          totLength += fileStatus.getLen
+        }
+      }
+      totLength
     }
   }
 }

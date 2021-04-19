@@ -72,6 +72,10 @@ object PerfTest {
         opt[String]("format")
           .action((x, c) => c.copy(format = x))
           .text("Data source format (csv)"),
+        opt[String]("datasource")
+          .required()
+          .action((x, c) => c.copy(datasource = x))
+          .text("Data source (ndp, spark)"),
         opt[Unit]("pushdown")
           .action((_, c) => c.copy(pushdown = true))
           .text("Enable pushdown."),
@@ -120,11 +124,6 @@ object PerfTest {
     if (!config.gen && (config.testList.length == 0)) {
       log.info("\n\nNot enough arguments. Either --gen or -n must be selected.")
       System.exit(1)
-    }
-    if (config.pushdown) {
-      config.datasource = "ndp"
-    } else {
-      config.datasource = "spark"
     }
     if (config.host == "") {
         // The perf-test.conf file has a few parameters that
@@ -179,9 +178,9 @@ object PerfTest {
              s" pushdown: ${config.pushdown} datasource: ${config.datasource}" +
              s" format: ${config.format} host: ${config.host}")
 
-    val db = new TpcDatabase(config.testSuite, config.host,
-                             config.format, config.pushdown,
-                             config.datasource)
+    val db = new TpcDatabase(new TpcDbOptions(config.testSuite, config.host,
+                                              config.format, config.pushdown,
+                                              config.datasource))
 
     /* Either generate the database or run the test(s)
      */

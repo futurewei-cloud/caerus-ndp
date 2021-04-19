@@ -57,6 +57,7 @@ lazy val commonDependencies = {
   "org.apache.spark" %% "spark-catalyst" % sparkVersion % Test classifier "test-sources",
   "org.apache.hadoop" % "hadoop-client" % "3.2.2" % "provided",
 
+  "de.siegmar" % "fastcsv" % "2.0.0",
   "org.slf4j" % "slf4j-api" % slf4jVersion % "provided",
   "log4j" % "log4j" % log4jVersion)
 }

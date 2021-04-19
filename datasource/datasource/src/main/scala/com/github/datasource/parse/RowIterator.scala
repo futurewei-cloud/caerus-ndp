@@ -26,6 +26,7 @@ import java.util.Locale
 import scala.collection.JavaConverters._
 
 import com.github.datasource.common.TypeCast
+import de.siegmar.fastcsv.reader.CsvReader
 import org.slf4j.LoggerFactory
 
 import org.apache.spark.sql.Row
@@ -86,6 +87,7 @@ class RowIterator(rowReader: BufferedReader,
     if (delim.fieldDelim != '|') {
       var value: String = ""
       var fieldStart = 0
+      // logger.info(s"line: ${line}")
       while (index < schema.fields.length && fieldStart < line.length) {
         if (line(fieldStart) != delim.quoteDelim) {
           var fieldEnd = line.substring(fieldStart).indexOf(delim.fieldDelim)
@@ -113,12 +115,19 @@ class RowIterator(rowReader: BufferedReader,
                                     field.nullable)
         index += 1
       }
+    } else if (delim.fieldDelim == 'j') {
+       val it = CsvReader.builder().build(line).iterator()
+       if (it.hasNext) {
+         val fields = it.next.getFields()
+         while (index < fields.size) {
+           val field = schema.fields(index)
+           row(index) = TypeCast.castTo(fields.get(index), field.dataType, true,
+                                        field.nullable)
+           index += 1
+         }
+       }
     } else {
       val values = line.split(delim.fieldDelim)
-      // scalastyle:off
-      println(s"line: ${line}")
-      println(s"values: ${values}")
-      println(s"schema: ${schema.mkString(",")}")
       if (values.length > 0 && values(0) != "") {
         for (value <- values) {
           val field = schema.fields(index)
@@ -128,9 +137,9 @@ class RowIterator(rowReader: BufferedReader,
         }
       }
     }
-    // scalastyle:on
     if (index >= schema.fields.length) {
       rows += 1
+      // logger.info(row.mkString(","))
       new GenericInternalRow(row)
     } else {
       /* If empty, we will simply discard the row since
@@ -182,4 +191,79 @@ class RowIterator(rowReader: BufferedReader,
     row
   }
   def close(): Unit = {}
+}
+
+object RowIterator {
+  private val logger = LoggerFactory.getLogger(getClass)
+
+  /** Returns an InternalRow parsed from the input line.
+   *
+   * @param line the String of line to parse
+   * @return the InternalRow of this line..
+   */
+  def parseLine(line: String,
+                schema: StructType,
+                fieldDelim: Char = ',',
+                quoteDelim: Char = '\"'): InternalRow = {
+    var row = new Array[Any](schema.fields.length)
+    var index = 0
+    if (fieldDelim != '|') {
+      var value: String = ""
+      var fieldStart = 0
+      // println("parseLine: " + line)
+      while (index < schema.fields.length && fieldStart < line.length) {
+        if (line(fieldStart) != quoteDelim) {
+          var fieldEnd = line.substring(fieldStart).indexOf(fieldDelim)
+          if (fieldEnd == -1) {
+            // field is from here to the end of the line
+            value = line.substring(fieldStart)
+            // Next field start is after comma
+            fieldStart = line.length
+          } else {
+            // field is from start (no skipping) to just before ,
+            value = line.substring(fieldStart, fieldStart + fieldEnd)
+            // Next field start is after comma
+            fieldStart = fieldStart + fieldEnd + 1
+          }
+        } else {
+          // Search from +1 (after ") to next quote
+          var fieldEnd = line.substring(fieldStart + 1).indexOf(quoteDelim)
+          // Field range is from after " to just before (-1) next quote
+          value = line.substring(fieldStart + 1, fieldStart + fieldEnd + 1)
+          // Next field start is after quote and comma
+          fieldStart = fieldStart + 1 + fieldEnd + 2
+        }
+        val field = schema.fields(index)
+        try {
+          row(index) = TypeCast.castTo(value, field.dataType, false,
+                                      field.nullable)
+        } catch {
+          case e: Throwable => logger.warn(s"Exception found parsing index: ${index}" +
+                                           s" field: ${field.name} value: ${value}")
+                    logger.warn(s"line: ${line}")
+                    throw e
+        }
+        index += 1
+      }
+    } else {
+      for (value <- line.split(fieldDelim)) {
+        val field = schema.fields(index)
+        row(index) = TypeCast.castTo(value, field.dataType, false,
+                                    field.nullable)
+        index += 1
+      }
+    }
+    if (index >= schema.fields.length) {
+      logger.info("row:" + row.mkString(","))
+      new GenericInternalRow(row)
+    } else {
+      /* If empty, we will simply discard the row since
+       * the next partition will pick up this row.
+       * This can be expected for some protocols, thus there is no tracing by default.
+       */
+      // logger.info(s"line too short rows:${rows} " +
+      //             s"received fields:${index}/${schema.fields.length}: ${line}")
+      InternalRow.empty
+    }
+  }
 }

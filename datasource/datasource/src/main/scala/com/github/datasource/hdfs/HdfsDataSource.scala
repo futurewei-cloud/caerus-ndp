@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.connector.read._
+import org.apache.spark.sql.execution.datasources.v2.PartitionReaderFromIterator
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types._
 
@@ -82,7 +83,7 @@ class HdfsScan(schema: StructType,
    * @return array of S3Partitions
    */
   private def getPartitions(): Array[InputPartition] = {
-    var store: HdfsStore = HdfsStoreFactory.getStore(schema, options,
+    var store: HdfsStore = HdfsStoreFactory.getStore(schema, Seq(options.get("path")), options,
                                                      prunedSchema)
     val fileName = store.filePath
     val blocks : Map[String, Array[BlockLocation]] = store.getBlockList(fileName)
@@ -113,6 +114,11 @@ class HdfsPartitionReaderFactory(schema: StructType,
     new HdfsPartitionReader(schema, options,
                             prunedSchema, partition.asInstanceOf[HdfsPartition])
   }
+  def createReaderNew(partition: InputPartition): PartitionReader[InternalRow] = {
+    var store: HdfsStore = HdfsStoreFactory.getStore(schema, Seq(options.get("path")), options,
+                                                     prunedSchema)
+    new PartitionReaderFromIterator(store.getRowIter(partition.asInstanceOf[HdfsPartition]))
+  }
 }
 
 /** PartitionReader of HdfsPartitions
@@ -133,7 +139,8 @@ class HdfsPartitionReader(schema: StructType,
   /* We setup a rowIterator and then read/parse
    * each row as it is asked for.
    */
-  private var store: HdfsStore = HdfsStoreFactory.getStore(schema, options,
+  private var store: HdfsStore = HdfsStoreFactory.getStore(schema,
+                                                           Seq(options.get("path")), options,
                                                            prunedSchema)
   private var rowIterator: Iterator[InternalRow] = store.getRowIter(partition)
 
