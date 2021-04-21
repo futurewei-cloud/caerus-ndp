@@ -45,7 +45,7 @@ mkdir -p "${ROOT_DIR}/volume/logs"
 rm -f "${ROOT_DIR}/volume/logs/*"
 
 mkdir -p "${ROOT_DIR}/volume/status"
-rm -f "${ROOT_DIR}/volume/status/*"
+rm -f ${ROOT_DIR}/volume/status/*
 
 if [ "$RUNNING_MODE" = "interactive" ]; then
   DOCKER_IT="-i -t"
@@ -68,7 +68,7 @@ DOCKER_RUN="docker run --rm=true ${DOCKER_IT}\
   --name hadoop-ndp --hostname hadoop-ndp\
   hadoop-${HADOOP_VERSION}-ndp-${USER_NAME} ${CMD}"
 
-echo "$DOCKER_RUN"
+#echo "$DOCKER_RUN"
 if [ "$RUNNING_MODE" = "interactive" ]; then
   eval "${DOCKER_RUN}"
 else
@@ -79,5 +79,24 @@ else
 
   cat "${ROOT_DIR}/volume/status/HADOOP_STATE"
 fi
+
+sleep 3
+echo "Disabling safe mode ..."
+docker exec -it hadoop-ndp bin/hdfs dfsadmin -safemode leave
+
+sleep 1
+echo "Setting up premissions for minio"
+docker exec -it hadoop-ndp bin/hdfs dfs -chmod -R 777 /
+docker exec -it hadoop-ndp bin/hdfs dfs -ls /
+
+sleep 1
+echo "Starting minio S3 gateway in detached mode ..."
+
+docker run --rm=true -d=true \
+ -e "MINIO_ROOT_USER=minioadmin" \
+ -e "MINIO_ROOT_PASSWORD=minioadmin" \
+ --name minio --hostname minio \
+ --network dike-net \
+ minio/minio gateway hdfs hdfs://hadoop-ndp:9000
 
 popd

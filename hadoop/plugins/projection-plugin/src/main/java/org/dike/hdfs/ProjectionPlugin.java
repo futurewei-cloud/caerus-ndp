@@ -87,6 +87,11 @@ final class ProjectionPlugin
     this.conf = conf;    
   }
 
+  public static Configuration initializeState(Configuration conf) {
+    System.out.println("ProjectionPlugin::initializeState");
+    return(new Configuration(conf));
+  }
+
   @Override
   protected void decode(ChannelHandlerContext ctx, Object msg, List<Object> out) throws Exception {
     if (msg instanceof HttpRequest) {
@@ -97,7 +102,7 @@ final class ProjectionPlugin
         return;
       }
 
-      //REQLOG.info("ProjectionPlugin : " + req.getUri());
+      REQLOG.info("ProjectionPlugin : " + req.getUri() + ":" + ndpConfig);
 
       long offset = 0L;
       List<NameValuePair> params = URLEncodedUtils.parse(new URI(req.uri()), "UTF-8");
@@ -138,8 +143,7 @@ final class ProjectionPlugin
       ByteBuf outByteBuf = null;
       if (parser.isSorted) {
         outByteBuf = parser.parseSorted((ByteBuf)msg);
-      } else {
-        //outByteBuf = parser.parse((ByteBuf)msg);
+      } else {        
         outByteBuf = parser.parseRandom((ByteBuf)msg);
       }
 
@@ -206,11 +210,11 @@ final class ProjectionPlugin
       carryoverBytes = 0;
       currentColumn = 0;
       currentUnderQuote = false;
-      if (blockSize > 0 && offset > 0) {
-        seekRow = true;
-        skipHeader = false;
+      
+      if (offset == 0) {
+        seekRow = skipHeader;
       } else {
-        seekRow = false;
+        seekRow = true;
       }
       
       beginIndex = new int[columns * MAX_RECORDS];
@@ -375,9 +379,8 @@ final class ProjectionPlugin
       int index, nextIndex, col, lastRow, outIndex;
       index = nextIndex = col = lastRow = outIndex = 0;
 
-      if (seekRow || skipHeader) {
-        seekRow = false;
-        skipHeader = false;                
+      if (seekRow) {
+        seekRow = false;                     
         while(index < bufferBytes){
           byte b = inBytes[index++];
           if(b == (byte)recordDelim) {
@@ -413,56 +416,6 @@ final class ProjectionPlugin
       return outByteBuf;
     }
 
-    public ByteBuf parse(ByteBuf inByteBuf) {      
-      int readableBytes = inByteBuf.readableBytes();
-      int leftOverBytes = 0;      
-      
-      if (leftOver != null){
-          leftOverBytes = leftOver.length;
-      }
-      int bufferBytes = readableBytes + leftOverBytes;
-      
-      if (outBytes == null || inBytes == null){
-        outBytes = new byte[bufferBytes + 128];
-        inBytes = new byte[bufferBytes + 128];
-      }
-      if (outBytes.length < bufferBytes || inBytes.length < bufferBytes) {
-        outBytes = new byte[bufferBytes + 128];
-        inBytes = new byte[bufferBytes + 128];
-      }
-
-      if (leftOverBytes > 0) {    
-        System.arraycopy(leftOver, 0, inBytes, 0, leftOverBytes);        
-      }      
-      
-      inByteBuf.getBytes(inByteBuf.readerIndex(), inBytes, leftOverBytes, readableBytes);      
-
-      leftOver = null;
-
-      int index, nextIndex, col, lastRow, outIndex;
-      index = nextIndex = col = lastRow = outIndex = 0;
-
-      if (seekRow || skipHeader) {
-        seekRow = false;
-        skipHeader = false;                
-        while(index < bufferBytes){
-          byte b = inBytes[index++];
-          if(b == (byte)recordDelim) {
-            break;
-          }
-        }
-
-        totalBytes += index - lastRow;
-        lastRow = index;
-      }
-      
-      outIndex = writeRecords(inBytes, index, bufferBytes, outBytes);        
-
-      ByteBuf outByteBuf = Unpooled.wrappedBuffer(outBytes, 0, outIndex);
-      outByteBuf.retain();
-      return outByteBuf;
-    }
-
   public ByteBuf parseSorted(ByteBuf inByteBuf) {
       int outIndex = 0;
       int readableBytes = inByteBuf.readableBytes();                  
@@ -476,9 +429,8 @@ final class ProjectionPlugin
 
       inByteBuf.getBytes(inByteBuf.readerIndex(), inBytes, 0, readableBytes);
 
-      if (seekRow || skipHeader) {
+      if (seekRow) {
         seekRow = false;
-        skipHeader = false;                
         while(index < readableBytes){
           byte b = inBytes[index++];
           if(b == (byte)recordDelim) {
@@ -537,9 +489,4 @@ final class ProjectionPlugin
       return outByteBuf;
     }
   } // class parser  
-
-  public static Configuration initializeState(Configuration conf) {
-    System.out.println("ProjectionPlugin::initializeState");
-    return(new Configuration(conf));
-  }  
 }
